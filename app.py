@@ -1,320 +1,188 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 from io import BytesIO
 
 st.set_page_config(
-    page_title="EBITDA Performans Dashboard",
-    page_icon="📊",
+    page_title="EBITDA Karar Motoru",
+    page_icon="🎯",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Modern Dark Theme CSS - React tarzı
+# Minimal dark theme - karar odaklı
 st.markdown("""
 <style>
-    /* Ana tema */
-    .stApp {
-        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%);
-    }
+    .stApp { background: #0f172a; }
     
-    /* Header */
-    .main-header {
-        background: linear-gradient(90deg, #f59e0b 0%, #ea580c 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin-bottom: 0;
-        letter-spacing: -0.5px;
-    }
-    
-    .sub-header {
-        color: #64748b;
-        font-size: 0.95rem;
-        margin-top: 0;
-    }
-    
-    /* Metric Kartları */
-    .metric-card {
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.2rem;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-    }
-    
-    .metric-card-alert {
-        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.2rem;
-        box-shadow: 0 8px 32px rgba(220,38,38,0.3);
-        position: relative;
-        overflow: hidden;
-    }
-    .metric-card-alert::before {
-        content: '';
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 10px;
-        height: 10px;
-        background: #fca5a5;
-        border-radius: 50%;
-        animation: pulse 1.5s infinite;
-    }
-    
-    .metric-card-warning {
-        background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.2rem;
-        box-shadow: 0 8px 32px rgba(234,88,12,0.3);
-    }
-    
-    .metric-card-success {
-        background: linear-gradient(135deg, #059669 0%, #047857 100%);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.2rem;
-        box-shadow: 0 8px 32px rgba(5,150,105,0.3);
-    }
-    
-    .metric-card-purple {
-        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.2rem;
-        box-shadow: 0 8px 32px rgba(124,58,237,0.3);
-    }
-    
-    .metric-title {
-        color: rgba(255,255,255,0.7);
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 4px;
-    }
-    
-    .metric-value {
-        color: #ffffff;
-        font-size: 1.6rem;
+    .main-title {
+        color: #f59e0b;
+        font-size: 1.8rem;
         font-weight: 700;
-        margin: 0;
-        line-height: 1.2;
+        margin-bottom: 0;
     }
     
-    .metric-delta {
-        font-size: 0.8rem;
-        font-weight: 500;
-        margin-top: 4px;
-    }
-    .metric-delta-negative { color: #fca5a5; }
-    .metric-delta-positive { color: #86efac; }
-    .metric-delta-neutral { color: rgba(255,255,255,0.6); }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(1.2); }
+    .sub-title {
+        color: #64748b;
+        font-size: 0.9rem;
     }
     
-    /* SM Kartları */
-    .sm-card {
-        background: rgba(30, 41, 59, 0.6);
-        border: 1px solid rgba(255,255,255,0.1);
+    .kpi-box {
+        background: #1e293b;
+        border: 1px solid #334155;
         border-radius: 12px;
-        padding: 1rem;
-        transition: border-color 0.2s;
-    }
-    .sm-card:hover {
-        border-color: rgba(245,158,11,0.5);
+        padding: 16px;
+        text-align: center;
     }
     
-    .sm-name {
+    .kpi-box-alert {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+        border: 1px solid #dc2626;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        cursor: pointer;
+    }
+    
+    .kpi-box-warning {
+        background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+        border: 1px solid #f59e0b;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        cursor: pointer;
+    }
+    
+    .kpi-label {
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .kpi-value {
         color: #ffffff;
-        font-size: 0.95rem;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 4px 0;
+    }
+    
+    .kpi-delta {
+        font-size: 0.85rem;
+    }
+    
+    .negative { color: #f87171; }
+    .positive { color: #4ade80; }
+    .neutral { color: #94a3b8; }
+    
+    .section-title {
+        color: #e2e8f0;
+        font-size: 1.1rem;
         font-weight: 600;
+        margin: 24px 0 12px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #334155;
+    }
+    
+    .sm-row {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 12px 16px;
         margin-bottom: 8px;
     }
     
-    .sm-stat {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 4px;
-    }
-    
-    .sm-label {
-        color: #64748b;
-        font-size: 0.75rem;
-    }
-    
-    .sm-value {
-        color: #ffffff;
-        font-size: 0.9rem;
-        font-weight: 600;
-    }
-    
-    .sm-value-negative { color: #f87171; }
-    .sm-value-positive { color: #4ade80; }
-    
-    /* Badge'ler */
-    .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 9999px;
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
-    
-    .badge-red {
-        background: rgba(239,68,68,0.2);
-        color: #f87171;
-        border: 1px solid rgba(239,68,68,0.3);
-    }
-    
-    .badge-orange {
-        background: rgba(249,115,22,0.2);
-        color: #fb923c;
-        border: 1px solid rgba(249,115,22,0.3);
-    }
-    
-    .badge-green {
-        background: rgba(34,197,94,0.2);
-        color: #4ade80;
-        border: 1px solid rgba(34,197,94,0.3);
-    }
-    
-    .badge-purple {
-        background: rgba(168,85,247,0.2);
-        color: #c084fc;
-        border: 1px solid rgba(168,85,247,0.3);
-    }
-    
-    .badge-gray {
-        background: rgba(100,116,139,0.2);
-        color: #94a3b8;
-        border: 1px solid rgba(100,116,139,0.3);
-    }
-    
-    /* Tab stilleri */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: rgba(30, 41, 59, 0.4);
-        padding: 8px;
-        border-radius: 12px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: transparent;
-        border-radius: 8px;
-        color: #94a3b8;
-        font-weight: 500;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: rgba(245,158,11,0.2) !important;
-        color: #f59e0b !important;
-    }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-        border-right: 1px solid rgba(255,255,255,0.1);
-    }
-    
-    /* File uploader */
-    [data-testid="stFileUploader"] {
-        background: rgba(30, 41, 59, 0.4);
-        border: 2px dashed rgba(245,158,11,0.3);
-        border-radius: 12px;
-        padding: 1rem;
-    }
-    
-    /* Section divider */
-    .section-divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-        margin: 2rem 0;
-    }
-    
-    /* Info box */
-    .info-box {
-        background: rgba(30, 41, 59, 0.6);
-        border-left: 4px solid #f59e0b;
+    .magaza-card {
+        background: #1e293b;
+        border-left: 3px solid #f59e0b;
         border-radius: 0 8px 8px 0;
-        padding: 1rem;
+        padding: 12px 16px;
+        margin: 8px 0;
+    }
+    
+    .magaza-card-alert {
+        background: #1e293b;
+        border-left: 3px solid #ef4444;
+        border-radius: 0 8px 8px 0;
+        padding: 12px 16px;
+        margin: 8px 0;
+    }
+    
+    .sebep-box {
+        background: #0f172a;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 8px;
+        font-size: 0.85rem;
+        color: #cbd5e1;
+    }
+    
+    .time-header {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 0.5fr 1fr 0.5fr;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #0f172a;
+        border-radius: 8px;
+        font-size: 0.7rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+    
+    .time-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 0.5fr 1fr 0.5fr;
+        gap: 8px;
+        padding: 10px 12px;
+        background: #1e293b;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        font-size: 0.9rem;
         color: #e2e8f0;
     }
     
-    /* Hide Streamlit branding */
+    .divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #334155, transparent);
+        margin: 24px 0;
+    }
+    
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #1e293b;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #475569;
-        border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-    }
 </style>
 """, unsafe_allow_html=True)
 
+
+# === VERİ İŞLEME FONKSİYONLARI ===
 
 def extract_code(magaza):
     if pd.isna(magaza):
         return None
     return str(magaza).split()[0]
 
-
-def analyze_reason(row):
-    sebepler = []
-    if row['Ciro_Degisim'] < -50000:
-        sebepler.append('CİRO')
-    if row['Gider_Degisim'] > 30000:
-        sebepler.append('GİDER')
-    if row['Marj_Degisim'] < -50000:
-        sebepler.append('MARJ')
-    
-    if not sebepler:
-        return 'KARMA' if row['EBITDA_Degisim'] < 0 else 'POZİTİF'
-    return '+'.join(sebepler)
-
-
 @st.cache_data
-def load_and_process_data(uploaded_file):
+def load_data(uploaded_file):
     df = pd.read_excel(uploaded_file, sheet_name='EBITDA', header=1)
     df = df[df['Kar / Zarar'] != 'GENEL'].copy()
+    return df
+
+def process_data(df):
+    """3 aylık veriyi işle ve karar motoru için hazırla"""
     
-    donemler = df['Mali yıl/dönem - Orta uzunl.metin'].dropna().unique()
-    
+    # Dönemleri sırala
     ay_map = {'Ocak': 1, 'Şubat': 2, 'Mart': 3, 'Nisan': 4, 'Mayıs': 5, 'Haziran': 6,
               'Temmuz': 7, 'Ağustos': 8, 'Eylül': 9, 'Ekim': 10, 'Kasım': 11, 'Aralık': 12}
+    
+    donemler = df['Mali yıl/dönem - Orta uzunl.metin'].dropna().unique()
     
     def parse_donem(d):
         try:
             parts = d.split()
-            ay = ay_map.get(parts[0], 0)
-            yil = int(parts[1])
-            return yil * 100 + ay
+            return ay_map.get(parts[0], 0)
         except:
             return 0
     
@@ -323,73 +191,198 @@ def load_and_process_data(uploaded_file):
     if len(donemler) < 2:
         return None, None, "En az 2 dönem verisi gerekli"
     
-    onceki_donem = donemler[0]
-    guncel_donem = donemler[1]
+    # Son 3 ayı al (veya mevcut kadarını)
+    donemler = donemler[-3:] if len(donemler) >= 3 else donemler
     
-    onceki = df[df['Mali yıl/dönem - Orta uzunl.metin'] == onceki_donem].copy()
-    guncel = df[df['Mali yıl/dönem - Orta uzunl.metin'] == guncel_donem].copy()
+    # Her dönem için veri ayır
+    donem_data = {}
+    for d in donemler:
+        temp = df[df['Mali yıl/dönem - Orta uzunl.metin'] == d].copy()
+        temp['Kod'] = temp['Mağaza'].apply(extract_code)
+        donem_data[d] = temp.set_index('Kod')
     
-    onceki['Kod'] = onceki['Mağaza'].apply(extract_code)
-    guncel['Kod'] = guncel['Mağaza'].apply(extract_code)
+    # Ortak mağazalar (son ayda satışı olanlar)
+    son_donem = donemler[-1]
+    son_df = donem_data[son_donem]
     
-    common = set(onceki['Kod'].dropna()) & set(guncel['Kod'].dropna())
+    # Son ay Net Satış'ı olmayanları çıkar
+    son_df = son_df[pd.to_numeric(son_df['Net Satış (KDV Hariç)'], errors='coerce').fillna(0) > 0]
+    valid_codes = set(son_df.index)
     
-    onceki_c = onceki[onceki['Kod'].isin(common)].set_index('Kod')
-    guncel_c = guncel[guncel['Kod'].isin(common)].set_index('Kod')
+    # Tüm dönemlerde ortak olanlar
+    for d in donemler[:-1]:
+        valid_codes = valid_codes & set(donem_data[d].index)
     
-    comparison = pd.DataFrame({
-        'Kod': list(common),
-        'Mağaza': [guncel_c.loc[k, 'Mağaza'] if k in guncel_c.index else '' for k in common],
-        'BS': [guncel_c.loc[k, 'Bölge Sorumlusu - Metin'] if k in guncel_c.index else '' for k in common],
-        'SM': [guncel_c.loc[k, 'Satış Müdürü - Metin'] if k in guncel_c.index else '' for k in common],
-        'm2': [guncel_c.loc[k, 'Net Metrekare'] if k in guncel_c.index else 0 for k in common],
-        'Onceki_Ciro': [onceki_c.loc[k, 'Net Satış (KDV Hariç)'] if k in onceki_c.index else 0 for k in common],
-        'Guncel_Ciro': [guncel_c.loc[k, 'Net Satış (KDV Hariç)'] if k in guncel_c.index else 0 for k in common],
-        'Onceki_Gider': [onceki_c.loc[k, 'Toplam Mağaza Giderleri'] if k in onceki_c.index else 0 for k in common],
-        'Guncel_Gider': [guncel_c.loc[k, 'Toplam Mağaza Giderleri'] if k in guncel_c.index else 0 for k in common],
-        'Onceki_Marj': [onceki_c.loc[k, 'Net Marj'] if k in onceki_c.index else 0 for k in common],
-        'Guncel_Marj': [guncel_c.loc[k, 'Net Marj'] if k in guncel_c.index else 0 for k in common],
-        'Onceki_EBITDA': [onceki_c.loc[k, 'Mağaza Kar/Zararı'] if k in onceki_c.index else 0 for k in common],
-        'Guncel_EBITDA': [guncel_c.loc[k, 'Mağaza Kar/Zararı'] if k in guncel_c.index else 0 for k in common],
-    })
+    # Sonuç DataFrame oluştur
+    results = []
     
-    numeric_cols = ['Onceki_Ciro', 'Guncel_Ciro', 'Onceki_Gider', 'Guncel_Gider', 
-                    'Onceki_Marj', 'Guncel_Marj', 'Onceki_EBITDA', 'Guncel_EBITDA', 'm2']
-    for col in numeric_cols:
-        comparison[col] = pd.to_numeric(comparison[col], errors='coerce').fillna(0)
+    gider_kalemleri = {
+        'Personel': 'Personel Giderleri',
+        'Kira': 'Mağaza Kira Giderleri',
+        'Elektrik_Su_Tel': 'Su\\Elektrik\\Telefon Giderleri ',
+        'Diger': 'Diğer Giderler'
+    }
     
-    comparison['EBITDA_Degisim'] = comparison['Guncel_EBITDA'] - comparison['Onceki_EBITDA']
-    comparison['Ciro_Degisim'] = comparison['Guncel_Ciro'] - comparison['Onceki_Ciro']
-    comparison['Gider_Degisim'] = comparison['Guncel_Gider'] - comparison['Onceki_Gider']
-    comparison['Marj_Degisim'] = comparison['Guncel_Marj'] - comparison['Onceki_Marj']
+    for kod in valid_codes:
+        row = {'Kod': kod}
+        
+        # Son dönemden sabit bilgiler
+        son = son_df.loc[kod]
+        if isinstance(son, pd.DataFrame):
+            son = son.iloc[0]
+        
+        row['Mağaza'] = str(son['Mağaza'])
+        row['SM'] = str(son['Satış Müdürü - Metin']) if pd.notna(son['Satış Müdürü - Metin']) else ''
+        row['BS'] = str(son['Bölge Sorumlusu - Metin']) if pd.notna(son['Bölge Sorumlusu - Metin']) else ''
+        
+        # Her dönem için metrikleri al
+        for i, d in enumerate(donemler):
+            prefix = f"D{i+1}_"  # D1_, D2_, D3_
+            
+            data = donem_data[d]
+            if kod in data.index:
+                r = data.loc[kod]
+                if isinstance(r, pd.DataFrame):
+                    r = r.iloc[0]
+                
+                net_satis = pd.to_numeric(r['Net Satış (KDV Hariç)'], errors='coerce') or 0
+                toplam_gider = pd.to_numeric(r['Toplam Mağaza Giderleri'], errors='coerce') or 0
+                ebitda = pd.to_numeric(r['Mağaza Kar/Zararı'], errors='coerce') or 0
+                
+                row[f'{prefix}NetSatis'] = net_satis
+                row[f'{prefix}ToplamGider'] = toplam_gider
+                row[f'{prefix}EBITDA'] = ebitda
+                row[f'{prefix}EBITDA_Oran'] = (ebitda / net_satis * 100) if net_satis > 0 else 0
+                
+                # Gider kalemleri
+                for key, col in gider_kalemleri.items():
+                    if col in r.index:
+                        val = pd.to_numeric(r[col], errors='coerce') or 0
+                        row[f'{prefix}{key}_TL'] = val
+                        row[f'{prefix}{key}_Oran'] = (val / net_satis * 100) if net_satis > 0 else 0
+            else:
+                row[f'{prefix}NetSatis'] = 0
+                row[f'{prefix}ToplamGider'] = 0
+                row[f'{prefix}EBITDA'] = 0
+                row[f'{prefix}EBITDA_Oran'] = 0
+        
+        results.append(row)
     
-    comparison['Gider_Ciro_Oran'] = np.where(
-        comparison['Guncel_Ciro'] > 0,
-        (comparison['Guncel_Gider'] / comparison['Guncel_Ciro']) * 100,
-        0
-    )
+    result_df = pd.DataFrame(results)
     
-    comparison['Sebep'] = comparison.apply(analyze_reason, axis=1)
-    comparison['Acil'] = (comparison['Guncel_EBITDA'] < 0) | (comparison['EBITDA_Degisim'] < -100000)
-    comparison['Ust_Uste_Negatif'] = (comparison['Onceki_EBITDA'] < 0) & (comparison['Guncel_EBITDA'] < 0)
+    # Değişim hesapla
+    n = len(donemler)
     
-    valid_ratios = comparison[(comparison['Gider_Ciro_Oran'] > 0) & (comparison['Gider_Ciro_Oran'] < 100)]['Gider_Ciro_Oran']
-    benchmark = valid_ratios.median() if len(valid_ratios) > 0 else 14.43
+    if n >= 2:
+        # D1 → D2 değişim
+        result_df['D1_D2_EBITDA_Degisim'] = result_df['D2_EBITDA'] - result_df['D1_EBITDA']
+        result_df['D1_D2_Oran_Degisim'] = result_df['D2_EBITDA_Oran'] - result_df['D1_EBITDA_Oran']
+        result_df['D1_D2_Satis_Degisim_Pct'] = ((result_df['D2_NetSatis'] - result_df['D1_NetSatis']) / result_df['D1_NetSatis'].replace(0, np.nan) * 100).fillna(0)
     
-    comparison['Tasarruf_Potansiyeli'] = np.where(
-        (comparison['Guncel_Ciro'] > 0) & (comparison['Gider_Ciro_Oran'] > benchmark),
-        comparison['Guncel_Gider'] - (comparison['Guncel_Ciro'] * benchmark / 100),
-        0
-    )
-    comparison['Tasarruf_Potansiyeli'] = comparison['Tasarruf_Potansiyeli'].clip(lower=0)
+    if n >= 3:
+        # D2 → D3 değişim
+        result_df['D2_D3_EBITDA_Degisim'] = result_df['D3_EBITDA'] - result_df['D2_EBITDA']
+        result_df['D2_D3_Oran_Degisim'] = result_df['D3_EBITDA_Oran'] - result_df['D2_EBITDA_Oran']
+        result_df['D2_D3_Satis_Degisim_Pct'] = ((result_df['D3_NetSatis'] - result_df['D2_NetSatis']) / result_df['D2_NetSatis'].replace(0, np.nan) * 100).fillna(0)
     
-    donem_info = {'onceki': onceki_donem, 'guncel': guncel_donem, 'benchmark': benchmark}
+    # Acil ve Yangın tanımları
+    son_ebitda_col = f'D{n}_EBITDA'
+    son_oran_col = f'D{n}_EBITDA_Oran'
     
-    return comparison, donem_info, None
+    if n >= 3:
+        # Yangın: Üst üste 2 ay negatif
+        result_df['Yangin'] = (result_df['D2_EBITDA'] < 0) & (result_df['D3_EBITDA'] < 0)
+        
+        # Acil: Son ay negatif VE trend kötüleşiyor
+        result_df['Acil'] = (
+            (result_df['D3_EBITDA'] < 0) & 
+            ((result_df['D2_D3_EBITDA_Degisim'] < 0) | (result_df['D1_D2_EBITDA_Degisim'] < 0))
+        )
+    elif n >= 2:
+        result_df['Yangin'] = (result_df['D1_EBITDA'] < 0) & (result_df['D2_EBITDA'] < 0)
+        result_df['Acil'] = (result_df['D2_EBITDA'] < 0) & (result_df['D1_D2_EBITDA_Degisim'] < 0)
+    
+    donem_info = {
+        'donemler': donemler,
+        'n': n
+    }
+    
+    return result_df, donem_info, None
+
+
+def generate_sebep_analizi(row, donem_info):
+    """Mağaza için detaylı sebep analizi üret"""
+    
+    n = donem_info['n']
+    donemler = donem_info['donemler']
+    
+    sebepler = []
+    
+    if n < 2:
+        return "Yeterli veri yok"
+    
+    # Son iki dönem karşılaştır
+    if n >= 3:
+        onceki_prefix = 'D2_'
+        son_prefix = 'D3_'
+        onceki_donem = donemler[1]
+        son_donem = donemler[2]
+    else:
+        onceki_prefix = 'D1_'
+        son_prefix = 'D2_'
+        onceki_donem = donemler[0]
+        son_donem = donemler[1]
+    
+    # Satış değişimi
+    onceki_satis = row[f'{onceki_prefix}NetSatis']
+    son_satis = row[f'{son_prefix}NetSatis']
+    satis_degisim_pct = ((son_satis - onceki_satis) / onceki_satis * 100) if onceki_satis > 0 else 0
+    
+    if satis_degisim_pct < -10:
+        sebepler.append(f"📉 Net Satış %{abs(satis_degisim_pct):.1f} düştü ({onceki_donem}: {onceki_satis:,.0f}₺ → {son_donem}: {son_satis:,.0f}₺)")
+    
+    # Gider kalemleri analizi
+    gider_kalemleri = ['Personel', 'Kira', 'Elektrik_Su_Tel', 'Diger']
+    gider_isimleri = {'Personel': 'Personel', 'Kira': 'Kira', 'Elektrik_Su_Tel': 'Su/Elektrik/Tel', 'Diger': 'Diğer'}
+    
+    for gider in gider_kalemleri:
+        onceki_tl = row.get(f'{onceki_prefix}{gider}_TL', 0) or 0
+        son_tl = row.get(f'{son_prefix}{gider}_TL', 0) or 0
+        onceki_oran = row.get(f'{onceki_prefix}{gider}_Oran', 0) or 0
+        son_oran = row.get(f'{son_prefix}{gider}_Oran', 0) or 0
+        
+        tl_degisim = son_tl - onceki_tl
+        oran_degisim = son_oran - onceki_oran
+        
+        # Oran değişimi kritik mi?
+        if oran_degisim > 1:  # 1 puan üzeri artış
+            gider_ismi = gider_isimleri[gider]
+            
+            if tl_degisim > 5000:  # TL de arttı
+                sebepler.append(
+                    f"⚠️ {gider_ismi}: TL arttı ({onceki_tl:,.0f}→{son_tl:,.0f}) + Oran %{onceki_oran:.1f}→%{son_oran:.1f}"
+                )
+            elif abs(tl_degisim) < 3000:  # TL sabit, ciro düştü
+                sebepler.append(
+                    f"⚠️ {gider_ismi}: TL sabit ({son_tl:,.0f}₺), ciro düşünce oran %{onceki_oran:.1f}→%{son_oran:.1f} çıktı"
+                )
+    
+    # EBITDA oran değişimi
+    onceki_ebitda_oran = row[f'{onceki_prefix}EBITDA_Oran']
+    son_ebitda_oran = row[f'{son_prefix}EBITDA_Oran']
+    oran_degisim = son_ebitda_oran - onceki_ebitda_oran
+    
+    if oran_degisim < -2:
+        sebepler.append(f"📊 EBITDA Oranı %{onceki_ebitda_oran:.1f} → %{son_ebitda_oran:.1f} ({oran_degisim:+.1f} puan)")
+    
+    if not sebepler:
+        return "Belirgin bozulma tespit edilemedi"
+    
+    return "\n".join(sebepler)
 
 
 def format_currency(value):
-    if pd.isna(value):
+    if pd.isna(value) or value == 0:
         return "-"
     if abs(value) >= 1000000:
         return f"{value/1000000:.2f}M"
@@ -398,400 +391,289 @@ def format_currency(value):
     return f"{value:.0f}"
 
 
-def render_metric_card(title, value, delta=None, delta_type="neutral", card_type="default"):
-    card_class = {
-        "default": "metric-card",
-        "alert": "metric-card-alert",
-        "warning": "metric-card-warning",
-        "success": "metric-card-success",
-        "purple": "metric-card-purple"
-    }.get(card_type, "metric-card")
-    
-    delta_class = {
-        "negative": "metric-delta-negative",
-        "positive": "metric-delta-positive",
-        "neutral": "metric-delta-neutral"
-    }.get(delta_type, "metric-delta-neutral")
-    
-    delta_html = f'<p class="metric-delta {delta_class}">{delta}</p>' if delta else ''
-    
-    return f"""
-    <div class="{card_class}">
-        <p class="metric-title">{title}</p>
-        <p class="metric-value">{value}</p>
-        {delta_html}
-    </div>
-    """
-
-
-def render_sm_card(sm_name, magaza_sayisi, guncel_ebitda, degisim, degisim_pct, acil_sayisi):
-    value_class = "sm-value-negative" if degisim < 0 else "sm-value-positive"
-    degisim_str = f"{format_currency(degisim)}₺"
-    if degisim > 0:
-        degisim_str = f"+{degisim_str}"
-    
-    acil_html = f'<span class="badge badge-red" style="margin-left:8px">{acil_sayisi} acil</span>' if acil_sayisi > 0 else ''
-    
-    return f"""
-    <div class="sm-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span class="sm-name">{sm_name}</span>
-            <span class="badge badge-gray">{magaza_sayisi}</span>
-        </div>
-        <div class="sm-stat">
-            <span class="sm-label">Güncel EBITDA</span>
-            <span class="sm-value">{format_currency(guncel_ebitda)}₺</span>
-        </div>
-        <div class="sm-stat">
-            <span class="sm-label">Değişim</span>
-            <span class="sm-value {value_class}">{degisim_str} ({degisim_pct:.1f}%)</span>
-        </div>
-        <div style="margin-top:8px">{acil_html}</div>
-    </div>
-    """
-
+# === ANA UYGULAMA ===
 
 def main():
     # Header
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st.markdown("""
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-            <div style="background:linear-gradient(135deg,#f59e0b,#ea580c);padding:10px;border-radius:12px">
-                <span style="font-size:1.5rem">📊</span>
-            </div>
-            <div>
-                <p class="main-header">EBITDA Performans Dashboard</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown('<p class="main-title">🎯 EBITDA Karar Motoru</p>', unsafe_allow_html=True)
     
+    # File upload
+    col1, col2 = st.columns([3, 1])
     with col2:
-        uploaded_file = st.file_uploader("", type=['xlsx', 'xls'], label_visibility="collapsed")
+        uploaded_file = st.file_uploader("", type=['xlsx'], label_visibility="collapsed")
     
     if not uploaded_file:
         st.markdown("""
-        <div class="info-box">
-            <strong>📁 EBITDA Excel dosyasını yükleyin</strong><br>
-            <span style="color:#94a3b8;font-size:0.9rem">MIS_BW_03_Mağaza_Bazında_EBITDA formatında, en az 2 dönem verisi içeren dosya</span>
+        <div style="background:#1e293b;border-left:3px solid #f59e0b;padding:16px;border-radius:0 8px 8px 0;margin-top:20px">
+            <strong style="color:#f59e0b">📁 EBITDA dosyasını yükleyin</strong><br>
+            <span style="color:#94a3b8;font-size:0.9rem">MIS_BW_03_Mağaza_Bazında_EBITDA formatında, en az 2 dönem</span>
         </div>
         """, unsafe_allow_html=True)
         return
     
+    # Veri yükle
     with st.spinner("Veri işleniyor..."):
-        df, donem_info, error = load_and_process_data(uploaded_file)
+        df = load_data(uploaded_file)
+        result_df, donem_info, error = process_data(df)
     
     if error:
-        st.error(f"❌ {error}")
+        st.error(error)
         return
     
-    if df is None or len(df) == 0:
-        st.error("Veri işlenemedi")
-        return
+    donemler = donem_info['donemler']
+    n = donem_info['n']
     
-    # Dönem bilgisi
-    st.markdown(f'<p class="sub-header">{donem_info["onceki"]} → {donem_info["guncel"]} Karşılaştırması</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="sub-title">{" → ".join(donemler)} | {len(result_df)} mağaza</p>', unsafe_allow_html=True)
     
-    # Metrikler
-    toplam_onceki = df['Onceki_EBITDA'].sum()
-    toplam_guncel = df['Guncel_EBITDA'].sum()
-    toplam_degisim = toplam_guncel - toplam_onceki
-    degisim_pct = (toplam_degisim / abs(toplam_onceki) * 100) if toplam_onceki != 0 else 0
-    acil_sayi = len(df[df['Acil']])
-    yangin_sayi = len(df[df['Ust_Uste_Negatif']])
-    tasarruf = df['Tasarruf_Potansiyeli'].sum()
+    # === KPI KARTLARI ===
     
-    # KPI Kartları
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    # Hesaplamalar
+    son_prefix = f'D{n}_'
+    toplam_ebitda = result_df[f'{son_prefix}EBITDA'].sum()
+    toplam_satis = result_df[f'{son_prefix}NetSatis'].sum()
+    genel_oran = (toplam_ebitda / toplam_satis * 100) if toplam_satis > 0 else 0
     
-    cols = st.columns(6)
+    acil_sayi = result_df['Acil'].sum() if 'Acil' in result_df.columns else 0
+    yangin_sayi = result_df['Yangin'].sum() if 'Yangin' in result_df.columns else 0
     
-    with cols[0]:
-        st.markdown(render_metric_card(
-            f"💰 {donem_info['guncel']} EBITDA",
-            f"{format_currency(toplam_guncel)}₺",
-            f"↓ {degisim_pct:.1f}% ({format_currency(toplam_degisim)}₺)",
-            "negative" if toplam_degisim < 0 else "positive",
-            "default"
-        ), unsafe_allow_html=True)
+    # Önceki dönemle karşılaştır
+    if n >= 2:
+        onceki_prefix = f'D{n-1}_'
+        onceki_toplam = result_df[f'{onceki_prefix}EBITDA'].sum()
+        onceki_satis = result_df[f'{onceki_prefix}NetSatis'].sum()
+        onceki_oran = (onceki_toplam / onceki_satis * 100) if onceki_satis > 0 else 0
+        ebitda_degisim = toplam_ebitda - onceki_toplam
+        oran_degisim = genel_oran - onceki_oran
+    else:
+        ebitda_degisim = 0
+        oran_degisim = 0
     
-    with cols[1]:
-        st.markdown(render_metric_card(
-            "🏪 Mağaza Sayısı",
-            str(len(df)),
-            f"{len(df[df['Guncel_EBITDA'] < 0])} negatif",
-            "neutral",
-            "default"
-        ), unsafe_allow_html=True)
+    # KPI gösterimi
+    col1, col2, col3, col4 = st.columns(4)
     
-    with cols[2]:
-        st.markdown(render_metric_card(
-            "🚨 Acil Müdahale",
-            str(acil_sayi),
-            "mağaza",
-            "negative",
-            "alert"
-        ), unsafe_allow_html=True)
+    with col1:
+        delta_class = "negative" if ebitda_degisim < 0 else "positive"
+        st.markdown(f"""
+        <div class="kpi-box">
+            <p class="kpi-label">💰 {donemler[-1]} EBITDA</p>
+            <p class="kpi-value">{format_currency(toplam_ebitda)}₺</p>
+            <p class="kpi-delta {delta_class}">{ebitda_degisim:+,.0f}₺</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[3]:
-        st.markdown(render_metric_card(
-            "🔥 Yangın",
-            str(yangin_sayi),
-            "üst üste negatif",
-            "negative",
-            "warning"
-        ), unsafe_allow_html=True)
+    with col2:
+        delta_class = "negative" if oran_degisim < 0 else "positive"
+        st.markdown(f"""
+        <div class="kpi-box">
+            <p class="kpi-label">📊 EBITDA Oranı</p>
+            <p class="kpi-value">%{genel_oran:.2f}</p>
+            <p class="kpi-delta {delta_class}">{oran_degisim:+.2f} puan</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[4]:
-        st.markdown(render_metric_card(
-            "📐 Benchmark G/C",
-            f"%{donem_info['benchmark']:.1f}",
-            "medyan oran",
-            "neutral",
-            "purple"
-        ), unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+        <div class="kpi-box-alert">
+            <p class="kpi-label">🚨 Acil Müdahale</p>
+            <p class="kpi-value">{int(acil_sayi)}</p>
+            <p class="kpi-delta neutral">mağaza</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[5]:
-        st.markdown(render_metric_card(
-            "💎 Tasarruf Potansiyeli",
-            f"{format_currency(tasarruf)}₺",
-            "normalize edilirse",
-            "positive",
-            "success"
-        ), unsafe_allow_html=True)
+    with col4:
+        st.markdown(f"""
+        <div class="kpi-box-warning">
+            <p class="kpi-label">🔥 Yangın</p>
+            <p class="kpi-value">{int(yangin_sayi)}</p>
+            <p class="kpi-delta neutral">üst üste negatif</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Divider
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
-    # SM Performans
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-        <span style="font-size:1.2rem">👥</span>
-        <span style="color:#ffffff;font-size:1.1rem;font-weight:600">SM Bazında Performans</span>
-    </div>
-    """, unsafe_allow_html=True)
+    # === SM PERFORMANS TABLOSU ===
     
-    sm_df = df.groupby('SM').agg({
-        'Onceki_EBITDA': 'sum',
-        'Guncel_EBITDA': 'sum',
-        'EBITDA_Degisim': 'sum',
+    st.markdown('<p class="section-title">👥 SM Performans (Zaman Serisi)</p>', unsafe_allow_html=True)
+    
+    # SM bazında grupla
+    sm_cols = ['SM']
+    for i in range(1, n+1):
+        sm_cols.extend([f'D{i}_EBITDA', f'D{i}_EBITDA_Oran', f'D{i}_NetSatis'])
+    
+    sm_df = result_df.groupby('SM').agg({
+        **{f'D{i}_EBITDA': 'sum' for i in range(1, n+1)},
+        **{f'D{i}_NetSatis': 'sum' for i in range(1, n+1)},
         'Kod': 'count',
-        'Acil': 'sum'
+        'Acil': 'sum' if 'Acil' in result_df.columns else lambda x: 0,
+        'Yangin': 'sum' if 'Yangin' in result_df.columns else lambda x: 0
     }).reset_index()
-    sm_df.columns = ['SM', 'Onceki', 'Guncel', 'Degisim', 'Magaza', 'Acil']
-    sm_df['Degisim_Pct'] = (sm_df['Degisim'] / sm_df['Onceki'].abs() * 100)
-    sm_df = sm_df[sm_df['Magaza'] > 2].sort_values('Degisim')
     
-    sm_cols = st.columns(len(sm_df))
-    for i, (_, row) in enumerate(sm_df.iterrows()):
-        with sm_cols[i]:
-            st.markdown(render_sm_card(
-                row['SM'].split()[0] if pd.notna(row['SM']) else 'N/A',
-                int(row['Magaza']),
-                row['Guncel'],
-                row['Degisim'],
-                row['Degisim_Pct'],
-                int(row['Acil'])
-            ), unsafe_allow_html=True)
+    # Oranları hesapla
+    for i in range(1, n+1):
+        sm_df[f'D{i}_Oran'] = (sm_df[f'D{i}_EBITDA'] / sm_df[f'D{i}_NetSatis'] * 100).fillna(0)
     
-    # Divider
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    # Değişimleri hesapla
+    if n >= 2:
+        sm_df['D1_D2_Pct'] = ((sm_df['D2_EBITDA'] - sm_df['D1_EBITDA']) / sm_df['D1_EBITDA'].abs().replace(0, np.nan) * 100).fillna(0)
+    if n >= 3:
+        sm_df['D2_D3_Pct'] = ((sm_df['D3_EBITDA'] - sm_df['D2_EBITDA']) / sm_df['D2_EBITDA'].abs().replace(0, np.nan) * 100).fillna(0)
     
-    # Tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        f"🚨 Acil Müdahale ({acil_sayi})",
-        f"🔥 Yangın ({yangin_sayi})",
-        f"📉 Düşenler ({len(df[df['EBITDA_Degisim'] < 0])})",
-        f"📈 Gelişenler ({len(df[df['EBITDA_Degisim'] > 0])})",
-        f"📊 Tümü ({len(df)})"
-    ])
+    sm_df = sm_df[sm_df['Kod'] > 2].sort_values(f'D{n}_EBITDA', ascending=False)
     
-    display_cols = ['Kod', 'Mağaza', 'SM', 'Guncel_EBITDA', 'EBITDA_Degisim', 'Sebep', 'Gider_Ciro_Oran', 'Tasarruf_Potansiyeli']
-    col_names = ['Kod', 'Mağaza', 'SM', 'EBITDA', 'Değişim', 'Sebep', 'G/C %', 'Tasarruf']
+    # Tablo header
+    if n == 3:
+        header_html = f"""
+        <div class="time-header">
+            <div>SM</div>
+            <div style="text-align:right">{donemler[0]}</div>
+            <div style="text-align:right">{donemler[1]}</div>
+            <div style="text-align:center">%Δ</div>
+            <div style="text-align:right">{donemler[2]}</div>
+            <div style="text-align:center">%Δ</div>
+        </div>
+        """
+    else:
+        header_html = f"""
+        <div class="time-header" style="grid-template-columns: 2fr 1fr 1fr 0.5fr;">
+            <div>SM</div>
+            <div style="text-align:right">{donemler[0]}</div>
+            <div style="text-align:right">{donemler[1]}</div>
+            <div style="text-align:center">%Δ</div>
+        </div>
+        """
     
-    def style_dataframe(df_display):
-        return df_display.style.format({
-            'EBITDA': '{:,.0f}',
-            'Değişim': '{:+,.0f}',
-            'G/C %': '{:.1f}%',
-            'Tasarruf': '{:,.0f}'
-        })
+    st.markdown(header_html, unsafe_allow_html=True)
+    
+    for _, sm_row in sm_df.iterrows():
+        sm_name = sm_row['SM'].split()[0] if pd.notna(sm_row['SM']) else 'N/A'
+        
+        if n == 3:
+            d1_d2_class = "negative" if sm_row.get('D1_D2_Pct', 0) < 0 else "positive"
+            d2_d3_class = "negative" if sm_row.get('D2_D3_Pct', 0) < 0 else "positive"
+            
+            row_html = f"""
+            <div class="time-row">
+                <div><strong>{sm_name}</strong> <span style="color:#64748b;font-size:0.8rem">({int(sm_row['Kod'])} mğz)</span></div>
+                <div style="text-align:right">{format_currency(sm_row['D1_EBITDA'])}₺<br><span style="color:#64748b;font-size:0.75rem">%{sm_row['D1_Oran']:.1f}</span></div>
+                <div style="text-align:right">{format_currency(sm_row['D2_EBITDA'])}₺<br><span style="color:#64748b;font-size:0.75rem">%{sm_row['D2_Oran']:.1f}</span></div>
+                <div style="text-align:center" class="{d1_d2_class}">{sm_row.get('D1_D2_Pct', 0):+.1f}%</div>
+                <div style="text-align:right">{format_currency(sm_row['D3_EBITDA'])}₺<br><span style="color:#64748b;font-size:0.75rem">%{sm_row['D3_Oran']:.1f}</span></div>
+                <div style="text-align:center" class="{d2_d3_class}">{sm_row.get('D2_D3_Pct', 0):+.1f}%</div>
+            </div>
+            """
+        else:
+            d1_d2_class = "negative" if sm_row.get('D1_D2_Pct', 0) < 0 else "positive"
+            
+            row_html = f"""
+            <div class="time-row" style="grid-template-columns: 2fr 1fr 1fr 0.5fr;">
+                <div><strong>{sm_name}</strong> <span style="color:#64748b;font-size:0.8rem">({int(sm_row['Kod'])} mğz)</span></div>
+                <div style="text-align:right">{format_currency(sm_row['D1_EBITDA'])}₺<br><span style="color:#64748b;font-size:0.75rem">%{sm_row['D1_Oran']:.1f}</span></div>
+                <div style="text-align:right">{format_currency(sm_row['D2_EBITDA'])}₺<br><span style="color:#64748b;font-size:0.75rem">%{sm_row['D2_Oran']:.1f}</span></div>
+                <div style="text-align:center" class="{d1_d2_class}">{sm_row.get('D1_D2_Pct', 0):+.1f}%</div>
+            </div>
+            """
+        
+        st.markdown(row_html, unsafe_allow_html=True)
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    
+    # === ACİL VE YANGIN LİSTELERİ ===
+    
+    tab1, tab2 = st.tabs([f"🚨 Acil Müdahale ({int(acil_sayi)})", f"🔥 Yangın ({int(yangin_sayi)})"])
     
     with tab1:
-        acil_df = df[df['Acil']].sort_values('EBITDA_Degisim')[display_cols].copy()
-        acil_df.columns = col_names
-        acil_df['SM'] = acil_df['SM'].apply(lambda x: x.split()[0] if pd.notna(x) else '')
-        acil_df['Mağaza'] = acil_df['Mağaza'].apply(lambda x: x[:35] if pd.notna(x) else '')
-        st.dataframe(style_dataframe(acil_df), height=450, use_container_width=True)
+        if acil_sayi > 0:
+            acil_df = result_df[result_df['Acil']].sort_values(f'D{n}_EBITDA')
+            
+            # SM bazında grupla
+            for sm in acil_df['SM'].unique():
+                sm_name = sm.split()[0] if pd.notna(sm) else 'N/A'
+                sm_magazalar = acil_df[acil_df['SM'] == sm]
+                
+                st.markdown(f"<p style='color:#f59e0b;font-weight:600;margin:16px 0 8px 0'>📁 {sm_name} ({len(sm_magazalar)} mağaza)</p>", unsafe_allow_html=True)
+                
+                for _, row in sm_magazalar.iterrows():
+                    # Zaman serisi göster
+                    if n == 3:
+                        zaman_str = f"{donemler[0]}: {format_currency(row['D1_EBITDA'])}₺ (%{row['D1_EBITDA_Oran']:.1f}) → {donemler[1]}: {format_currency(row['D2_EBITDA'])}₺ (%{row['D2_EBITDA_Oran']:.1f}) → {donemler[2]}: {format_currency(row['D3_EBITDA'])}₺ (%{row['D3_EBITDA_Oran']:.1f})"
+                    else:
+                        zaman_str = f"{donemler[0]}: {format_currency(row['D1_EBITDA'])}₺ (%{row['D1_EBITDA_Oran']:.1f}) → {donemler[1]}: {format_currency(row['D2_EBITDA'])}₺ (%{row['D2_EBITDA_Oran']:.1f})"
+                    
+                    sebep = generate_sebep_analizi(row, donem_info)
+                    
+                    st.markdown(f"""
+                    <div class="magaza-card-alert">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <strong style="color:#ffffff">{row['Kod']} - {row['Mağaza'][:30]}</strong>
+                        </div>
+                        <div style="color:#94a3b8;font-size:0.85rem;margin-top:8px">{zaman_str}</div>
+                        <div class="sebep-box">{sebep.replace(chr(10), '<br>')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.success("✅ Acil müdahale gerektiren mağaza yok")
     
     with tab2:
         if yangin_sayi > 0:
+            yangin_df = result_df[result_df['Yangin']].sort_values(f'D{n}_EBITDA')
+            
             st.markdown("""
-            <div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:12px;margin-bottom:16px">
-                <strong style="color:#fb923c">⚠️ Bu mağazalara ÖNCE gidilmeli!</strong>
-                <span style="color:#94a3b8;font-size:0.9rem;margin-left:8px">Üst üste 2 ay negatif EBITDA</span>
+            <div style="background:#7f1d1d;border:1px solid #dc2626;border-radius:8px;padding:12px;margin-bottom:16px">
+                <strong style="color:#fca5a5">⚠️ Bu mağazalara ÖNCE gidilmeli - Üst üste 2 ay negatif EBITDA</strong>
             </div>
             """, unsafe_allow_html=True)
             
-            yangin_df = df[df['Ust_Uste_Negatif']].sort_values('Guncel_EBITDA')[display_cols].copy()
-            yangin_df.columns = col_names
-            yangin_df['SM'] = yangin_df['SM'].apply(lambda x: x.split()[0] if pd.notna(x) else '')
-            yangin_df['Mağaza'] = yangin_df['Mağaza'].apply(lambda x: x[:35] if pd.notna(x) else '')
-            st.dataframe(style_dataframe(yangin_df), height=400, use_container_width=True)
+            for sm in yangin_df['SM'].unique():
+                sm_name = sm.split()[0] if pd.notna(sm) else 'N/A'
+                sm_magazalar = yangin_df[yangin_df['SM'] == sm]
+                
+                st.markdown(f"<p style='color:#fb923c;font-weight:600;margin:16px 0 8px 0'>📁 {sm_name} ({len(sm_magazalar)} mağaza)</p>", unsafe_allow_html=True)
+                
+                for _, row in sm_magazalar.iterrows():
+                    if n == 3:
+                        zaman_str = f"{donemler[0]}: {format_currency(row['D1_EBITDA'])}₺ → {donemler[1]}: {format_currency(row['D2_EBITDA'])}₺ → {donemler[2]}: {format_currency(row['D3_EBITDA'])}₺"
+                    else:
+                        zaman_str = f"{donemler[0]}: {format_currency(row['D1_EBITDA'])}₺ → {donemler[1]}: {format_currency(row['D2_EBITDA'])}₺"
+                    
+                    sebep = generate_sebep_analizi(row, donem_info)
+                    
+                    st.markdown(f"""
+                    <div class="magaza-card" style="border-left-color:#f97316">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <strong style="color:#ffffff">🔥 {row['Kod']} - {row['Mağaza'][:30]}</strong>
+                        </div>
+                        <div style="color:#94a3b8;font-size:0.85rem;margin-top:8px">{zaman_str}</div>
+                        <div class="sebep-box">{sebep.replace(chr(10), '<br>')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
         else:
-            st.success("✅ Üst üste negatif mağaza yok!")
+            st.success("✅ Yangın durumunda mağaza yok")
     
-    with tab3:
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            sebep_counts = df[df['EBITDA_Degisim'] < 0]['Sebep'].value_counts()
-            fig = px.pie(
-                values=sebep_counts.values, 
-                names=sebep_counts.index,
-                color_discrete_sequence=['#ef4444', '#f97316', '#a855f7', '#64748b']
-            )
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font_color='#94a3b8',
-                showlegend=True,
-                legend=dict(font=dict(size=11)),
-                margin=dict(t=20, b=20, l=20, r=20),
-                height=280
-            )
-            fig.update_traces(textinfo='percent+label', textfont_size=11)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            dusen_df = df[df['EBITDA_Degisim'] < 0].sort_values('EBITDA_Degisim')[display_cols].copy()
-            dusen_df.columns = col_names
-            dusen_df['SM'] = dusen_df['SM'].apply(lambda x: x.split()[0] if pd.notna(x) else '')
-            dusen_df['Mağaza'] = dusen_df['Mağaza'].apply(lambda x: x[:35] if pd.notna(x) else '')
-            st.dataframe(style_dataframe(dusen_df), height=280, use_container_width=True)
+    # === EXPORT ===
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
-    with tab4:
-        gelisen_df = df[df['EBITDA_Degisim'] > 0].sort_values('EBITDA_Degisim', ascending=False)[display_cols].copy()
-        gelisen_df.columns = col_names
-        gelisen_df['SM'] = gelisen_df['SM'].apply(lambda x: x.split()[0] if pd.notna(x) else '')
-        gelisen_df['Mağaza'] = gelisen_df['Mağaza'].apply(lambda x: x[:35] if pd.notna(x) else '')
-        st.dataframe(style_dataframe(gelisen_df), height=450, use_container_width=True)
-    
-    with tab5:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            sm_filter = st.multiselect("SM", options=df['SM'].dropna().unique(), key="sm_filter")
-        with col2:
-            sebep_filter = st.multiselect("Sebep", options=df['Sebep'].unique(), key="sebep_filter")
-        with col3:
-            sort_by = st.selectbox("Sırala", ['EBITDA_Degisim', 'Guncel_EBITDA', 'Gider_Ciro_Oran'], key="sort")
-        
-        filtered = df.copy()
-        if sm_filter:
-            filtered = filtered[filtered['SM'].isin(sm_filter)]
-        if sebep_filter:
-            filtered = filtered[filtered['Sebep'].isin(sebep_filter)]
-        filtered = filtered.sort_values(sort_by)
-        
-        all_display = filtered[display_cols].copy()
-        all_display.columns = col_names
-        all_display['SM'] = all_display['SM'].apply(lambda x: x.split()[0] if pd.notna(x) else '')
-        all_display['Mağaza'] = all_display['Mağaza'].apply(lambda x: x[:35] if pd.notna(x) else '')
-        st.dataframe(style_dataframe(all_display), height=400, use_container_width=True)
-    
-    # Divider
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-    
-    # Gider Analizi
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-        <span style="font-size:1.2rem">💸</span>
-        <span style="color:#ffffff;font-size:1.1rem;font-weight:600">Gider Analizi - En Yüksek Gider/Ciro</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        gider_top = df[df['Gider_Ciro_Oran'] > 0].nlargest(15, 'Gider_Ciro_Oran')
-        
-        fig = go.Figure()
-        colors = ['#ef4444' if x > donem_info['benchmark'] * 2 else '#f97316' if x > donem_info['benchmark'] else '#22c55e' 
-                  for x in gider_top['Gider_Ciro_Oran']]
-        fig.add_trace(go.Bar(
-            x=gider_top['Kod'],
-            y=gider_top['Gider_Ciro_Oran'],
-            marker_color=colors,
-            text=[f"{x:.1f}%" for x in gider_top['Gider_Ciro_Oran']],
-            textposition='outside'
-        ))
-        fig.add_hline(
-            y=donem_info['benchmark'], 
-            line_dash="dash", 
-            line_color="#22c55e",
-            annotation_text=f"Benchmark: %{donem_info['benchmark']:.1f}",
-            annotation_font_color="#22c55e"
-        )
-        fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font_color='#94a3b8',
-            xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
-            yaxis=dict(gridcolor='rgba(255,255,255,0.05)', title='Gider/Ciro %'),
-            margin=dict(t=40, b=40),
-            height=320
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        gider_df = df[df['Gider_Ciro_Oran'] > 0].nlargest(10, 'Gider_Ciro_Oran')[
-            ['Kod', 'Gider_Ciro_Oran', 'Tasarruf_Potansiyeli']
-        ].copy()
-        gider_df.columns = ['Kod', 'G/C %', 'Tasarruf']
-        gider_df['Fark'] = gider_df['G/C %'] - donem_info['benchmark']
-        
-        st.dataframe(
-            gider_df.style.format({
-                'G/C %': '{:.1f}%',
-                'Tasarruf': '{:,.0f}',
-                'Fark': '{:+.1f}%'
-            }),
-            height=320,
-            use_container_width=True
-        )
-    
-    # Export
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1, 2])
-    
+    col1, col2 = st.columns(2)
     with col1:
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df[df['Acil']].to_excel(writer, sheet_name='ACİL', index=False)
-            df[df['Ust_Uste_Negatif']].to_excel(writer, sheet_name='YANGIN', index=False)
-            df.to_excel(writer, sheet_name='TÜM VERİ', index=False)
+            result_df.to_excel(writer, sheet_name='TÜM VERİ', index=False)
+            if acil_sayi > 0:
+                result_df[result_df['Acil']].to_excel(writer, sheet_name='ACİL', index=False)
+            if yangin_sayi > 0:
+                result_df[result_df['Yangin']].to_excel(writer, sheet_name='YANGIN', index=False)
             sm_df.to_excel(writer, sheet_name='SM ÖZET', index=False)
         
         st.download_button(
             "📥 Excel İndir",
             data=output.getvalue(),
-            file_name=f"EBITDA_{donem_info['guncel'].replace(' ', '_')}.xlsx",
+            file_name=f"EBITDA_Karar_{donemler[-1].replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     
-    with col2:
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            "📄 CSV İndir",
-            data=csv,
-            file_name=f"EBITDA_{donem_info['guncel'].replace(' ', '_')}.csv",
-            mime="text/csv"
-        )
-    
     # Footer
-    st.markdown("""
-    <div style="text-align:center;margin-top:32px;padding:16px;color:#475569;font-size:0.8rem">
-        📊 A101 EBITDA Performans Dashboard | Antalya Bölgesi
+    st.markdown(f"""
+    <div style="text-align:center;margin-top:32px;color:#475569;font-size:0.8rem">
+        🎯 EBITDA Karar Motoru | {' → '.join(donemler)} | A101 Antalya Bölgesi
     </div>
     """, unsafe_allow_html=True)
 
