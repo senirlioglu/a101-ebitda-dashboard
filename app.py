@@ -265,10 +265,10 @@ def ajan_analiz(row, info):
         ciro_erozyon = True
         erozyon_nedenleri.append(f"Taşıma: SabitTL aynı ({fmt(sabit_tl1)}→{fmt(sabit_tl2)}), oran +{sabit_oran2-sabit_oran1:.1f}p")
     
-    # D) Taşıma Gücü Kritik
-    if tasima_gucu < 1.0:
+    # D) Taşıma Gücü Kritik (<1.2)
+    if tasima_gucu < 1.2:
         ciro_erozyon = True
-        erozyon_nedenleri.append(f"Taşıma Gücü: {tasima_gucu:.2f} (<1.0 KRİTİK)")
+        erozyon_nedenleri.append(f"Taşıma Gücü KRİTİK: {tasima_gucu:.2f} (<1.2)")
     
     result['gelir']['ciro_erozyon'] = ciro_erozyon
     
@@ -349,36 +349,70 @@ def ajan_analiz(row, info):
         if result['gider']['problemler']:
             result['envanter']['karsilik'] = "Gider artışı KARŞILIKSIZ"
     
-    # === NİHAİ HÜKÜM ===
-    gelir_problem = len(result['gelir']['problemler']) > 0
-    gider_problem = len(result['gider']['problemler']) > 0
+    # === NİHAİ HÜKÜM - HİYERARŞİK (GELİR > ENVANTER > GİDER) ===
     
-    if ciro_erozyon and not gider_problem:
+    # Taşıma gücü eşikleri güncellenmiş
+    tasima_risk = tasima_gucu < 1.5
+    tasima_kritik = tasima_gucu < 1.2
+    tasima_yangin = tasima_gucu < 1.0
+    
+    # Net/Brüt oranı kontrolü (indirim/mix bozulması)
+    brut1 = row.get(f'{d1}NetSatis', 0) or 0
+    brut2 = row.get(f'{d2}NetSatis', 0) or 0
+    # Brüt satış verisi varsa
+    brut_satis1 = row.get(f'{d1}BrutSatis', 0) or brut1
+    brut_satis2 = row.get(f'{d2}BrutSatis', 0) or brut2
+    
+    if brut_satis1 > 0 and brut_satis2 > 0:
+        net_brut1 = ns1 / brut_satis1
+        net_brut2 = ns2 / brut_satis2
+        if net_brut2 < net_brut1 - 0.02:
+            result['gelir']['problemler'].append(f"💸 İndirim/Mix bozulması: %{net_brut1*100:.1f}→%{net_brut2*100:.1f}")
+    
+    # === HÜKÜM HİYERARŞİSİ ===
+    # Öncelik: GELİR > ENVANTER > GİDER
+    
+    if ciro_erozyon:
+        # 1. GELİR BOZULDUYSA ANA SEBEP GELİR'DİR
         result['hukum']['tip'] = "CİRO_EROZYONU"
-    elif ciro_erozyon and gider_problem:
-        result['hukum']['tip'] = "KARISIK"
-    elif gelir_problem and gider_problem:
-        result['hukum']['tip'] = "KARISIK"
-    elif gelir_problem:
-        result['hukum']['tip'] = "MARJ_KAYNAKLI" if any('SMM' in p for p in result['gelir']['problemler']) else "SATIS_KAYNAKLI"
+        result['hukum']['aksiyon'].append("• Ciro erozyonu ana problem")
+        
+        if tasima_yangin:
+            result['hukum']['aksiyon'].append(f"• 🔥 YANGIN: Satış sabit giderleri taşımıyor (TG: {tasima_gucu:.2f})")
+        elif tasima_kritik:
+            result['hukum']['aksiyon'].append(f"• ⚠️ KRİTİK: Taşıma gücü düşük (TG: {tasima_gucu:.2f})")
+        elif tasima_risk:
+            result['hukum']['aksiyon'].append(f"• 📉 RİSK: Taşıma gücü azalıyor (TG: {tasima_gucu:.2f})")
+        
+        # Gider sadece NOT olarak eklenir - ANA SUÇLU DEĞİL
+        if gider_problem:
+            result['hukum']['aksiyon'].append("• NOT: Giderlerdeki oran artışı ciro düşüşünün SONUCUDUR")
+    
+    elif result['envanter']['durum'].startswith("🔴"):
+        # 2. ENVANTER BOZULDUYSA
+        result['hukum']['tip'] = "ENVANTER_KAYNAKLI"
+        result['hukum']['aksiyon'].append("• Envanter kaybı ana problem")
+        result['hukum']['aksiyon'].append("• Fire/hırsızlık kontrolü yap")
+    
     elif gider_problem:
+        # 3. SADECE GİDER ARTIŞI VARSA (ciro stabil)
         result['hukum']['tip'] = "GIDER_KAYNAKLI"
+        result['hukum']['aksiyon'].append("• Gider artışı ana problem (ciro stabil)")
+        if any('Personel' in p for p in result['gider']['problemler']):
+            result['hukum']['aksiyon'].append("• Vardiya optimizasyonu değerlendir")
+        if any('Elektrik' in p for p in result['gider']['problemler']):
+            result['hukum']['aksiyon'].append("• Enerji tüketimi kontrol et")
+        if any('Temizlik' in p for p in result['gider']['problemler']):
+            result['hukum']['aksiyon'].append("• Temizlik sözleşmesi kontrol et")
+    
+    elif any('SMM' in p for p in result['gelir']['problemler']):
+        # 4. SATIŞ KALİTE KAYBI (SMM artışı)
+        result['hukum']['tip'] = "SATIS_KALITE_KAYBI"
+        result['hukum']['aksiyon'].append("• SMM oranı bozulmuş")
+        result['hukum']['aksiyon'].append("• Tedarikçi/fiyat revizyonu yap")
+    
     else:
         result['hukum']['tip'] = "NORMAL"
-    
-    if result['hukum']['tip'] != "NORMAL":
-        if ciro_erozyon:
-            result['hukum']['aksiyon'].append("• Ciro erozyonu kaynağını araştır")
-            if tasima_gucu < 1.2:
-                result['hukum']['aksiyon'].append(f"• Taşıma gücü kritik ({tasima_gucu:.2f})")
-        if any('SMM' in p for p in result['gelir']['problemler']):
-            result['hukum']['aksiyon'].append("• Tedarikçi/fiyat revizyonu")
-        if any('Personel' in p for p in result['gider']['problemler']):
-            result['hukum']['aksiyon'].append("• Vardiya optimizasyonu")
-        if any('Elektrik' in p for p in result['gider']['problemler']):
-            result['hukum']['aksiyon'].append("• Enerji tüketimi kontrol")
-        if any('Temizlik' in p for p in result['gider']['problemler']):
-            result['hukum']['aksiyon'].append("• Temizlik sözleşmesi kontrol")
     
     return result
 
