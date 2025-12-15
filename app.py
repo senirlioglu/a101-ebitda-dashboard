@@ -15,7 +15,6 @@ GIDER_RULES = {
     "Elektrik": {"col": "Su\\Elektrik\\Telefon Giderleri ", "abs": 0.20, "rel": 0.30, "min_tl": 0},
     "Bilgisayar": {"col": "Bilgisayar Bakım Onarım Giderleri ", "abs": 0.05, "rel": 1.00, "min_tl": 500},
     "Temizlik": {"col": "Temizlik ve Bakım Onarım Giderleri", "abs": 0.05, "rel": 1.00, "min_tl": 2000},
-    "Amortisman": {"col": "Amoritsman Giderleri", "abs": 0.05, "rel": 0.20, "min_tl": 0},
     "Ambalaj": {"col": "Ambalaj Giderleri", "abs": 0.05, "rel": 0.30, "min_tl": 500},
     "Sigorta": {"col": "Sigorta Giderleri", "abs": 0.03, "rel": 0.20, "min_tl": 0},
     "Banka": {"col": "Banka Para Toplama Giderleri", "abs": 0.03, "rel": 0.30, "min_tl": 300},
@@ -221,10 +220,10 @@ def ajan_analiz(row, info):
     else:
         monotonic_down = False
     
-    # Sabit Gider Hesabı (Kira + Amortisman + Sigorta + Aidat)
-    sabit_tl1 = (row.get(f'{d1}Kira_TL', 0) or 0) + (row.get(f'{d1}Amortisman_TL', 0) or 0) + \
+    # Sabit Gider Hesabı (Kira + Sigorta + Aidat)
+    sabit_tl1 = (row.get(f'{d1}Kira_TL', 0) or 0) + \
                 (row.get(f'{d1}Sigorta_TL', 0) or 0) + (row.get(f'{d1}Aidat_TL', 0) or 0)
-    sabit_tl2 = (row.get(f'{d2}Kira_TL', 0) or 0) + (row.get(f'{d2}Amortisman_TL', 0) or 0) + \
+    sabit_tl2 = (row.get(f'{d2}Kira_TL', 0) or 0) + \
                 (row.get(f'{d2}Sigorta_TL', 0) or 0) + (row.get(f'{d2}Aidat_TL', 0) or 0)
     
     sabit_oran1 = safe_div(sabit_tl1, ns1)
@@ -310,7 +309,7 @@ def ajan_analiz(row, info):
         
         if bozuk and delta_abs > 0:
             # Sabit gider + ciro erozyonu varsa, gideri suçlama
-            if gider_key in ['Kira', 'Amortisman', 'Sigorta', 'Aidat']:
+            if gider_key in ['Kira', 'Sigorta', 'Aidat']:
                 tl_degisim = abs(tl2 - tl1) / max(tl1, 1) if tl1 > 0 else 0
                 if tl_degisim < 0.05 and ciro_erozyon:
                     # TL değişmemiş, sadece ciro düşünce oran arttı - GİDER SUÇLANMAZ
