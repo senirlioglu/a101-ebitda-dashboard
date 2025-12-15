@@ -79,11 +79,18 @@ def safe_pct(new, old):
 # === DATA LOADING ===
 @st.cache_data
 def load_data(f):
-    df = pd.read_excel(f, sheet_name='EBITDA', header=1)
+    try:
+        df = pd.read_excel(f, sheet_name='EBITDA', header=1)
+    except Exception as e:
+        return None, None, f"Excel okuma hatası: {str(e)}"
+    
     df = df[df['Kar / Zarar'] != 'GENEL'].copy()
     
+    if 'Mali yıl/dönem - Orta uzunl.metin' not in df.columns:
+        return None, None, "Dönem kolonu bulunamadı"
+    
     ay_map = {'Ocak':1,'Şubat':2,'Mart':3,'Nisan':4,'Mayıs':5,'Haziran':6,'Temmuz':7,'Ağustos':8,'Eylül':9,'Ekim':10,'Kasım':11,'Aralık':12}
-    donemler = sorted(df['Mali yıl/dönem - Orta uzunl.metin'].dropna().unique(), key=lambda d: ay_map.get(d.split()[0], 0))[-3:]
+    donemler = sorted(df['Mali yıl/dönem - Orta uzunl.metin'].dropna().unique(), key=lambda d: ay_map.get(str(d).split()[0], 0))[-3:]
     
     if len(donemler) < 2:
         return None, None, "En az 2 dönem gerekli"
@@ -100,15 +107,18 @@ def load_data(f):
     for d in donemler[:-1]:
         valid &= set(donem_data[d].index)
     
+    if len(valid) == 0:
+        return None, None, "Geçerli mağaza bulunamadı"
+    
     results = []
     for kod in valid:
         row = {'Kod': kod}
         s = son.loc[kod]
         if isinstance(s, pd.DataFrame): s = s.iloc[0]
         
-        row['Magaza_Isim'] = get_isim(s['Mağaza'])
-        row['SM'] = str(s['Satış Müdürü - Metin']).split()[0] if pd.notna(s['Satış Müdürü - Metin']) else ''
-        row['BS'] = str(s['Bölge Sorumlusu - Metin']).split()[0] if pd.notna(s['Bölge Sorumlusu - Metin']) else ''
+        row['Magaza_Isim'] = get_isim(s.get('Mağaza', ''))
+        row['SM'] = str(s.get('Satış Müdürü - Metin', '')).split()[0] if pd.notna(s.get('Satış Müdürü - Metin')) else ''
+        row['BS'] = str(s.get('Bölge Sorumlusu - Metin', '')).split()[0] if pd.notna(s.get('Bölge Sorumlusu - Metin')) else ''
         
         for i, d in enumerate(donemler):
             p = f'D{i+1}_'
@@ -131,7 +141,6 @@ def load_data(f):
             row[f'{p}Iade_Oran'] = safe_div(iade, brut) if brut > 0 else 0
             row[f'{p}Env_Oran'] = safe_div(env, ns)
             
-            # Tüm gider kalemleri
             for gider_key, gider_cfg in GIDER_RULES.items():
                 col = gider_cfg['col']
                 val = abs(pd.to_numeric(r.get(col, 0), errors='coerce') or 0)
@@ -144,12 +153,19 @@ def load_data(f):
     n = len(donemler)
     
     # Hibrit Skor
+    if f'D{n}_EBITDA_Oran' not in rdf.columns:
+        return None, None, "EBITDA Oran hesaplanamadı"
+    
     med = rdf[f'D{n}_EBITDA_Oran'].median()
     rdf['Seviye'] = rdf[f'D{n}_EBITDA_Oran'] - med
-    rdf['Trend'] = rdf[f'D{n}_EBITDA_Oran'] - rdf[f'D{n-1}_EBITDA_Oran'] if n >= 2 else 0
+    
+    if n >= 2 and f'D{n-1}_EBITDA_Oran' in rdf.columns:
+        rdf['Trend'] = rdf[f'D{n}_EBITDA_Oran'] - rdf[f'D{n-1}_EBITDA_Oran']
+    else:
+        rdf['Trend'] = 0
+    
     rdf['Skor'] = rdf['Seviye'] + rdf['Trend'] * 1.5
     
-    # Kategori
     def kat(r):
         if n >= 3 and r.get('D2_EBITDA', 0) < 0 and r.get('D3_EBITDA', 0) < 0:
             return '🔥 Yangın'
@@ -177,75 +193,60 @@ def ajan_analiz(row, info):
     }
     
     # === 1. EBITDA AJANI ===
-    eb1 = row.get(f'{d1}EBITDA_Oran', 0)
-    eb2 = row.get(f'{d2}EBITDA_Oran', 0)
+    eb1 = row.get(f'{d1}EBITDA_Oran', 0) or 0
+    eb2 = row.get(f'{d2}EBITDA_Oran', 0) or 0
     eb_trend = eb2 - eb1
     
-    # 3 ay kontrolü
     if n >= 3:
-        eb0 = row.get('D1_EBITDA_Oran', 0)
+        eb0 = row.get('D1_EBITDA_Oran', 0) or 0
         if eb2 < eb1 < eb0 and (eb0 - eb2) >= 1:
             result['ebitda']['alarm'] = True
-            result['ebitda']['mesaj'] = f"SESSİZ BOZULMA: %{eb0:.1f} → %{eb1:.1f} → %{eb2:.1f} (↓{eb0-eb2:.1f}p)"
+            result['ebitda']['mesaj'] = f"SESSİZ BOZULMA: %{eb0:.1f} → %{eb1:.1f} → %{eb2:.1f}"
     
     if eb_trend < -1:
         result['ebitda']['alarm'] = True
-        result['ebitda']['detay'].append(f"EBITDA Oran: %{eb1:.1f} → %{eb2:.1f} ({eb_trend:+.1f}p)")
+        result['ebitda']['detay'].append(f"EBITDA: %{eb1:.1f} → %{eb2:.1f}")
     
     # === 2. GELİR AJANI ===
-    # Net Satış
-    ns1 = row.get(f'{d1}NetSatis', 0)
-    ns2 = row.get(f'{d2}NetSatis', 0)
+    ns1 = row.get(f'{d1}NetSatis', 0) or 0
+    ns2 = row.get(f'{d2}NetSatis', 0) or 0
     ns_pct = safe_pct(ns2, ns1)
     if ns_pct < GELIR_RULES['NetSatis']['delta_pct']:
         result['gelir']['problemler'].append(f"📉 Ciro: {fmt(ns1)}→{fmt(ns2)} ({ns_pct:+.0f}%)")
     else:
         result['gelir']['ok'].append(f"Ciro: {ns_pct:+.0f}%")
     
-    # SMM Oranı
-    smm1 = row.get(f'{d1}SMM_Oran', 0)
-    smm2 = row.get(f'{d2}SMM_Oran', 0)
+    smm1 = row.get(f'{d1}SMM_Oran', 0) or 0
+    smm2 = row.get(f'{d2}SMM_Oran', 0) or 0
     smm_delta = smm2 - smm1
     if smm_delta > GELIR_RULES['SMM']['abs']:
         result['gelir']['problemler'].append(f"🏭 SMM: %{smm1:.1f}→%{smm2:.1f} (+{smm_delta:.1f}p)")
-    else:
-        result['gelir']['ok'].append(f"SMM: {smm_delta:+.1f}p")
     
-    # İade Oranı
-    iade1 = row.get(f'{d1}Iade_Oran', 0)
-    iade2 = row.get(f'{d2}Iade_Oran', 0)
+    iade1 = row.get(f'{d1}Iade_Oran', 0) or 0
+    iade2 = row.get(f'{d2}Iade_Oran', 0) or 0
     iade_delta = iade2 - iade1
     if iade_delta > GELIR_RULES['Iade']['abs']:
-        result['gelir']['problemler'].append(f"↩️ İade: %{iade1:.2f}→%{iade2:.2f} (+{iade_delta:.2f}p)")
+        result['gelir']['problemler'].append(f"↩️ İade: %{iade1:.2f}→%{iade2:.2f}")
     
     # === 3. GİDER AJANI ===
     for gider_key, gider_cfg in GIDER_RULES.items():
-        oran1 = row.get(f'{d1}{gider_key}_Oran', 0)
-        oran2 = row.get(f'{d2}{gider_key}_Oran', 0)
-        tl2 = row.get(f'{d2}{gider_key}_TL', 0)
+        oran1 = row.get(f'{d1}{gider_key}_Oran', 0) or 0
+        oran2 = row.get(f'{d2}{gider_key}_Oran', 0) or 0
+        tl2 = row.get(f'{d2}{gider_key}_TL', 0) or 0
         
         delta_abs = oran2 - oran1
         delta_rel = (oran2 / max(oran1, 0.01)) - 1 if oran1 > 0 else 0
         
-        abs_esik = gider_cfg['abs']
-        rel_esik = gider_cfg['rel']
-        min_tl = gider_cfg['min_tl']
-        
-        bozuk = (delta_abs >= abs_esik or delta_rel >= rel_esik) and tl2 >= min_tl
+        bozuk = (delta_abs >= gider_cfg['abs'] or delta_rel >= gider_cfg['rel']) and tl2 >= gider_cfg['min_tl']
         
         if bozuk and delta_abs > 0:
-            # Yapısal mı Akut mu?
+            tip = "AKUT"
             if n >= 3:
-                oran0 = row.get(f'D1_{gider_key}_Oran', 0)
-                med_oran = info['med'] if gider_key == 'Toplam' else 0
-                if oran1 > oran0 * 1.1:  # D1→D2 de yükselmişse
+                oran0 = row.get(f'D1_{gider_key}_Oran', 0) or 0
+                if oran1 > oran0 * 1.1:
                     tip = "YAPISAL"
-                else:
-                    tip = "AKUT"
-            else:
-                tip = "AKUT"
             
-            if delta_rel > 1:  # %100+ artış
+            if delta_rel > 1:
                 result['gider']['problemler'].append(f"🔴 {gider_key}: %{oran1:.2f}→%{oran2:.2f} (+{delta_rel*100:.0f}%) {tip}")
             else:
                 result['gider']['problemler'].append(f"🔴 {gider_key}: %{oran1:.2f}→%{oran2:.2f} (+{delta_abs:.2f}p) {tip}")
@@ -254,14 +255,14 @@ def ajan_analiz(row, info):
         result['gider']['ok'].append("Tüm giderler normal")
     
     # === 4. ENVANTER AJANI ===
-    env1 = row.get(f'{d1}Env_Oran', 0)
-    env2 = row.get(f'{d2}Env_Oran', 0)
+    env1 = row.get(f'{d1}Env_Oran', 0) or 0
+    env2 = row.get(f'{d2}Env_Oran', 0) or 0
     env_delta = env2 - env1
     
     if env_delta < -0.2:
         result['envanter']['durum'] = f"✅ İYİLEŞTİ: %{env1:.2f}→%{env2:.2f}"
         if result['gider']['problemler']:
-            result['envanter']['karsilik'] = "Gider artışı KARŞILIKLI (envanter düzeldi)"
+            result['envanter']['karsilik'] = "Gider artışı KARŞILIKLI"
     elif env_delta > GELIR_RULES['Envanter']['abs']:
         result['envanter']['durum'] = f"🔴 BOZULDU: %{env1:.2f}→%{env2:.2f}"
         result['envanter']['karsilik'] = "KARŞILIKSIZ"
@@ -277,36 +278,26 @@ def ajan_analiz(row, info):
     if gelir_problem and gider_problem:
         result['hukum']['tip'] = "KARISIK"
     elif gelir_problem:
-        if any('SMM' in p for p in result['gelir']['problemler']):
-            result['hukum']['tip'] = "MARJ_KAYNAKLI"
-        else:
-            result['hukum']['tip'] = "SATIS_KAYNAKLI"
+        result['hukum']['tip'] = "MARJ_KAYNAKLI" if any('SMM' in p for p in result['gelir']['problemler']) else "SATIS_KAYNAKLI"
     elif gider_problem:
         result['hukum']['tip'] = "GIDER_KAYNAKLI"
     else:
         result['hukum']['tip'] = "NORMAL"
     
-    # Aksiyon
     if result['hukum']['tip'] != "NORMAL":
         if any('Ciro' in p for p in result['gelir']['problemler']):
             result['hukum']['aksiyon'].append("• Ciro kaybı kaynağını araştır")
         if any('SMM' in p for p in result['gelir']['problemler']):
-            result['hukum']['aksiyon'].append("• Tedarikçi/fiyat revizyonu yap")
+            result['hukum']['aksiyon'].append("• Tedarikçi/fiyat revizyonu")
         if any('Personel' in p for p in result['gider']['problemler']):
-            result['hukum']['aksiyon'].append("• Vardiya optimizasyonu değerlendir")
+            result['hukum']['aksiyon'].append("• Vardiya optimizasyonu")
         if any('Elektrik' in p for p in result['gider']['problemler']):
-            result['hukum']['aksiyon'].append("• Enerji tüketimi kontrol et")
-        if any('Temizlik' in p for p in result['gider']['problemler']):
-            if 'KARŞILIKLI' in result['envanter'].get('karsilik', ''):
-                result['hukum']['aksiyon'].append("• Temizlik OK (envanter düzeldi)")
-            else:
-                result['hukum']['aksiyon'].append("• Temizlik sözleşmesi kontrol et")
+            result['hukum']['aksiyon'].append("• Enerji tüketimi kontrol")
     
     return result
 
 
 def get_sm_gider_profil(df, sm, n):
-    """SM için gider profili"""
     sm_df = df[df['SM'] == sm]
     if len(sm_df) < 3:
         return []
@@ -315,38 +306,24 @@ def get_sm_gider_profil(df, sm, n):
     for gider_key, gider_cfg in GIDER_RULES.items():
         if gider_key == 'Toplam':
             continue
-        
         col = f'D{n}_{gider_key}_Oran'
         if col not in df.columns:
             continue
         
         bolge_med = df[col].median()
         esik = bolge_med + gider_cfg['abs']
-        
         yuksek = sm_df[sm_df[col] > esik]
-        oran = len(yuksek) / len(sm_df)
+        oran = len(yuksek) / len(sm_df) if len(sm_df) > 0 else 0
         
         if oran >= 0.30:
-            # Yapısal mı?
+            tip = "AKUT"
             if n >= 3:
                 col_prev = f'D{n-1}_{gider_key}_Oran'
                 if col_prev in df.columns:
                     prev_yuksek = sm_df[sm_df[col_prev] > bolge_med + gider_cfg['abs']]
                     if len(prev_yuksek) / len(sm_df) >= 0.25:
                         tip = "YAPISAL"
-                    else:
-                        tip = "AKUT"
-                else:
-                    tip = "AKUT"
-            else:
-                tip = "AKUT"
-            
-            profil.append({
-                'kalem': gider_key,
-                'oran': oran,
-                'tip': tip,
-                'magazalar': yuksek['Magaza_Isim'].head(3).tolist()
-            })
+            profil.append({'kalem': gider_key, 'oran': oran, 'tip': tip})
     
     return sorted(profil, key=lambda x: x['oran'], reverse=True)
 
@@ -357,19 +334,23 @@ def main():
     
     f = st.file_uploader("Excel yükle", type=['xlsx'], label_visibility="collapsed")
     
-    if 'data' not in st.session_state:
-        st.session_state.data = None
-    
     if f:
         rdf, info, err = load_data(f)
         if err:
             st.error(err)
             return
+        if rdf is None or info is None:
+            st.error("Veri yüklenemedi")
+            return
         st.session_state.data = rdf
         st.session_state.info = info
     
-    if st.session_state.data is None:
+    if 'data' not in st.session_state or st.session_state.data is None:
         st.info("📁 EBITDA Excel dosyası yükleyin")
+        return
+    
+    if 'info' not in st.session_state or st.session_state.info is None:
+        st.error("Veri bilgisi eksik, dosyayı tekrar yükleyin")
         return
     
     df = st.session_state.data
@@ -417,79 +398,29 @@ def main():
         
         for _, row in kdf.iterrows():
             analiz = ajan_analiz(row, info)
-            
-            # Özet problemler
             tum_prob = analiz['gelir']['problemler'] + analiz['gider']['problemler']
             prob_str = " | ".join([p.split(':')[0].replace('🔴','').replace('📉','').replace('🏭','').strip() for p in tum_prob[:3]]) if tum_prob else "Normal"
             
             with st.expander(f"**{row['Magaza_Isim']}** | {row['SM']}/{row['BS']} | Skor:{row['Skor']:.1f} | {prob_str}"):
-                
-                # Trend
                 if n == 3:
-                    st.markdown(f"**EBITDA:** {dk[0]} %{row['D1_EBITDA_Oran']:.1f} → {dk[1]} %{row['D2_EBITDA_Oran']:.1f} → {dk[2]} %{row['D3_EBITDA_Oran']:.1f}")
+                    st.markdown(f"**EBITDA:** {dk[0]} %{row.get('D1_EBITDA_Oran',0):.1f} → {dk[1]} %{row.get('D2_EBITDA_Oran',0):.1f} → {dk[2]} %{row.get('D3_EBITDA_Oran',0):.1f}")
                 
-                # 4 Ajan Kutuları
                 col1, col2 = st.columns(2)
-                
                 with col1:
-                    # EBITDA Ajanı
-                    st.markdown(f"""
-                    <div class="ajan-box ajan-ebitda">
-                        <div class="ajan-title">1️⃣ EBITDA AJANI</div>
-                        <div>{'🔴 ALARM' if analiz['ebitda']['alarm'] else '✅ Normal'}</div>
-                        <div style="font-size:0.8rem;color:#64748b">{analiz['ebitda']['mesaj']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Gider Ajanı
-                    gider_html = ""
-                    for p in analiz['gider']['problemler'][:4]:
-                        gider_html += f'<span class="problem-item">{p}</span> '
-                    if not gider_html:
-                        gider_html = '<span class="ok-item">✅ Tüm giderler normal</span>'
-                    
-                    st.markdown(f"""
-                    <div class="ajan-box ajan-gider">
-                        <div class="ajan-title">3️⃣ GİDER AJANI</div>
-                        {gider_html}
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f'<div class="ajan-box ajan-ebitda"><div class="ajan-title">1️⃣ EBITDA</div>{"🔴 ALARM" if analiz["ebitda"]["alarm"] else "✅ Normal"}<br><small>{analiz["ebitda"]["mesaj"]}</small></div>', unsafe_allow_html=True)
+                    gider_html = " ".join([f'<span class="problem-item">{p}</span>' for p in analiz['gider']['problemler'][:3]]) or '<span class="ok-item">✅ Normal</span>'
+                    st.markdown(f'<div class="ajan-box ajan-gider"><div class="ajan-title">3️⃣ GİDER</div>{gider_html}</div>', unsafe_allow_html=True)
                 
                 with col2:
-                    # Gelir Ajanı
-                    gelir_html = ""
-                    for p in analiz['gelir']['problemler']:
-                        gelir_html += f'<span class="problem-item">{p}</span> '
-                    if not gelir_html:
-                        gelir_html = '<span class="ok-item">✅ Gelir normal</span>'
-                    
-                    st.markdown(f"""
-                    <div class="ajan-box ajan-gelir">
-                        <div class="ajan-title">2️⃣ GELİR AJANI</div>
-                        {gelir_html}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Envanter Ajanı
-                    st.markdown(f"""
-                    <div class="ajan-box ajan-envanter">
-                        <div class="ajan-title">4️⃣ ENVANTER AJANI</div>
-                        <div>{analiz['envanter']['durum']}</div>
-                        <div style="font-size:0.8rem;color:#64748b">{analiz['envanter']['karsilik']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    gelir_html = " ".join([f'<span class="problem-item">{p}</span>' for p in analiz['gelir']['problemler']]) or '<span class="ok-item">✅ Normal</span>'
+                    st.markdown(f'<div class="ajan-box ajan-gelir"><div class="ajan-title">2️⃣ GELİR</div>{gelir_html}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="ajan-box ajan-envanter"><div class="ajan-title">4️⃣ ENVANTER</div>{analiz["envanter"]["durum"]}<br><small>{analiz["envanter"]["karsilik"]}</small></div>', unsafe_allow_html=True)
                 
-                # Nihai Hüküm
                 if analiz['hukum']['tip'] != 'NORMAL':
-                    aksiyon_html = "<br>".join(analiz['hukum']['aksiyon']) if analiz['hukum']['aksiyon'] else ""
-                    st.markdown(f"""
-                    <div class="hukum-box">
-                        <strong>📋 NİHAİ HÜKÜM: {analiz['hukum']['tip']}</strong><br>
-                        <div style="margin-top:8px;font-size:0.85rem">{aksiyon_html}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    aksiyon_html = "<br>".join(analiz['hukum']['aksiyon'])
+                    st.markdown(f'<div class="hukum-box"><strong>📋 HÜKÜM: {analiz["hukum"]["tip"]}</strong><br><small>{aksiyon_html}</small></div>', unsafe_allow_html=True)
     
-    # === SM PERFORMANS ===
+    # === SM ===
     st.markdown("---")
     st.subheader("👥 SM Performans")
     
@@ -506,14 +437,12 @@ def main():
         for sm in smdf['SM'].unique():
             smdf.loc[smdf['SM'] == sm, k] = len(df[(df['SM'] == sm) & (df['Kategori'] == k)])
     
-    smdf['KT'] = smdf['🔥 Yangın'] + smdf['🚨 Acil'] + smdf['🟥 Kritik']
+    smdf['KT'] = smdf.get('🔥 Yangın', 0) + smdf.get('🚨 Acil', 0) + smdf.get('🟥 Kritik', 0)
     smdf = smdf.sort_values('KT', ascending=False)
     
     for _, sr in smdf.iterrows():
         sm = sr['SM']
         ko = " ".join([f"{k.split()[0]}{int(sr.get(k,0))}" for k in kats if sr.get(k,0) > 0])
-        
-        # SM Gider Profili
         gider_profil = get_sm_gider_profil(df, sm, n)
         
         if n == 3:
@@ -525,68 +454,35 @@ def main():
         
         with st.expander(f"**{sm}** ({int(sr['Kod'])} mğz) | {ko}"):
             st.markdown(f"**{fmt(sr[f'D{n}_EBITDA'])}** | {tr}")
-            
-            # Gider Profili
             if gider_profil:
                 profil_str = " | ".join([f"{p['kalem']} %{p['oran']*100:.0f} {p['tip']}" for p in gider_profil[:3]])
                 st.markdown(f'<div class="sm-alert">⚠️ {profil_str}</div>', unsafe_allow_html=True)
             
-            # BS'ler
             st.markdown("**BS'ler:**")
-            bsl = []
             for bs in df[df['SM'] == sm]['BS'].unique():
-                if not bs:
-                    continue
+                if not bs: continue
                 bt = df[(df['SM'] == sm) & (df['BS'] == bs)]
-                bso = [safe_div(bt[f'D{i}_EBITDA'].sum(), bt[f'D{i}_NetSatis'].sum()) for i in range(1, n+1)]
-                bsl.append({
-                    'bs': bs,
-                    'c': len(bt),
-                    'eb': bt[f'D{n}_EBITDA'].sum(),
-                    'o': bso,
-                    'kr': len(bt[bt['Kategori'].isin(['🔥 Yangın', '🚨 Acil', '🟥 Kritik'])]),
-                    'df': bt
-                })
-            
-            bsl = sorted(bsl, key=lambda x: x['kr'], reverse=True)
-            
-            for b in bsl:
-                if n == 3:
-                    q1 = safe_pct(b['o'][1], b['o'][0])
-                    q2 = safe_pct(b['o'][2], b['o'][1])
-                    btr = f"{dk[0]} %{b['o'][0]:.1f} → {dk[1]} %{b['o'][1]:.1f} ({'↓' if q1<0 else '↑'}{abs(q1):.0f}%) → {dk[2]} %{b['o'][2]:.1f} ({'↓' if q2<0 else '↑'}{abs(q2):.0f}%)"
-                else:
-                    btr = f"{dk[0]} %{b['o'][0]:.1f} → {dk[1]} %{b['o'][1]:.1f}"
+                beb = bt[f'D{n}_EBITDA'].sum()
+                bns = bt[f'D{n}_NetSatis'].sum()
+                bo = safe_div(beb, bns)
+                bkr = len(bt[bt['Kategori'].isin(['🔥 Yangın', '🚨 Acil', '🟥 Kritik'])])
                 
-                with st.expander(f"📁 {b['bs']} ({b['c']} mğz) | {fmt(b['eb'])} | {btr}"):
-                    km = b['df'][b['df']['Kategori'].isin(['🔥 Yangın', '🚨 Acil', '🟥 Kritik'])].sort_values('Skor')
-                    
+                with st.expander(f"📁 {bs} ({len(bt)} mğz) | {fmt(beb)} | %{bo:.1f} | ⚠️{bkr}"):
+                    km = bt[bt['Kategori'].isin(['🔥 Yangın', '🚨 Acil', '🟥 Kritik'])].sort_values('Skor')
                     if len(km) > 0:
-                        st.markdown("**⚠️ Dikkat Gerektiren:**")
                         for _, m in km.iterrows():
                             ma = ajan_analiz(m, info)
                             prob = " | ".join([p.split(':')[0].replace('🔴','').strip() for p in (ma['gelir']['problemler'] + ma['gider']['problemler'])[:2]]) or "Bozulma"
-                            
-                            with st.expander(f"• {m['Magaza_Isim']} | {m['Kategori']} | {m['Skor']:.1f} | {prob}"):
-                                # Mini 4 ajan
-                                for p in ma['gelir']['problemler']:
-                                    st.markdown(f"- {p}")
-                                for p in ma['gider']['problemler']:
-                                    st.markdown(f"- {p}")
-                                st.markdown(f"- Envanter: {ma['envanter']['durum']}")
-                                if ma['hukum']['aksiyon']:
-                                    st.markdown("**Aksiyon:**")
-                                    for a in ma['hukum']['aksiyon']:
-                                        st.markdown(a)
+                            st.markdown(f"• **{m['Magaza_Isim']}** | {m['Kategori']} | {prob}")
                     else:
-                        st.success("✅ Kritik mağaza yok")
+                        st.success("✅ OK")
     
     # === EXPORT ===
     st.markdown("---")
     out = BytesIO()
     with pd.ExcelWriter(out, engine='openpyxl') as w:
         df.to_excel(w, sheet_name='TÜM', index=False)
-    st.download_button("📥 Excel İndir", data=out.getvalue(), file_name=f"EBITDA_4Ajan_{donemler[-1].replace(' ','_')}.xlsx")
+    st.download_button("📥 Excel", data=out.getvalue(), file_name=f"EBITDA_4Ajan.xlsx")
 
 
 if __name__ == "__main__":
