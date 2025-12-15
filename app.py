@@ -637,12 +637,12 @@ def main():
             
             <div class="bolge-neden">
                 <div style="font-weight:600; margin-bottom:8px;">📋 NEDENLER</div>
-                {"".join([f"<div>• {n}</div>" for n in bolge['nedenler']])}
+                {"".join([f"<div>• {neden}</div>" for neden in bolge['nedenler']])}
             </div>
             
             <div class="bolge-kaldirac">
                 <div style="font-weight:600; margin-bottom:8px;">🎯 ÖNERİLEN KALDIRACLAR</div>
-                {"".join([f"<div>{k}</div>" for k in bolge['kaldiraclar']])}
+                {"".join([f"<div>{kaldirac}</div>" for kaldirac in bolge['kaldiraclar']])}
             </div>
         </div>
         ''', unsafe_allow_html=True)
