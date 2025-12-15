@@ -330,6 +330,9 @@ def ajan_analiz(row, info):
         result['gelir']['problemler'].append(f"🏭 SMM: %{smm1:.1f}→%{smm2:.1f} (+{smm_delta:.1f}p)")
     
     # === 3. GİDER AJANI ===
+    # Minimum etki eşiği: EBITDA'yı en az 0.5 puan etkilemeli
+    min_etki_tl = ns2 * 0.005 if ns2 > 0 else 5000  # Cironun %0.5'i
+    
     for gider_key, gider_cfg in GIDER_RULES.items():
         oran1 = row.get(f'{d1}{gider_key}_Oran', 0) or 0
         oran2 = row.get(f'{d2}{gider_key}_Oran', 0) or 0
@@ -338,6 +341,11 @@ def ajan_analiz(row, info):
         
         delta_abs = oran2 - oran1
         delta_rel = (oran2 / max(oran1, 0.01)) - 1 if oran1 > 0 else 0
+        tl_artis = tl2 - tl1
+        
+        # MİNİMUM ETKİ: TL artışı EBITDA'yı en az 0.5p etkilemeli
+        if tl_artis < min_etki_tl:
+            continue
         
         bozuk = (delta_abs >= gider_cfg['abs'] or delta_rel >= gider_cfg['rel']) and tl2 >= gider_cfg['min_tl']
         
@@ -388,6 +396,31 @@ def ajan_analiz(row, info):
     tasima_kritik = tasima_gucu < 1.2
     tasima_yangin = tasima_gucu < 1.0
     
+    # === 0. TEK SEFERLİK ŞOK GİDER TESPİTİ (EN ÖNCE) ===
+    sok_giderler = []
+    for gider_key in GIDER_RULES:
+        if gider_key == 'Toplam':
+            continue
+        tl1 = row.get(f'{d1}{gider_key}_TL', 0) or 0
+        tl2 = row.get(f'{d2}{gider_key}_TL', 0) or 0
+        
+        # 5x artış VE en az 50K TL = ŞOK
+        if tl1 > 0 and tl2 / tl1 >= 5 and tl2 >= 50000:
+            sok_giderler.append(f"{gider_key} ({fmt(tl1)}→{fmt(tl2)})")
+    
+    # Ciro stabil ama EBITDA çökmüşse ve şok gider varsa
+    ciro_stabil = abs(ns_pct) < 5  # %5'ten az değişim
+    ebitda_coktu = eb_trend < -5  # 5 puan düşüş
+    
+    if sok_giderler and ciro_stabil and ebitda_coktu:
+        result['hukum']['tip'] = "TEK_SEFERLIK_GIDER_SOKU"
+        result['hukum']['aksiyon'].append(f"• 🧨 Anormal gider: {', '.join(sok_giderler)}")
+        result['hukum']['aksiyon'].append("• Muhasebe fişi / tahakkuk / ceza kontrolü")
+        result['hukum']['aksiyon'].append("• Normalleştirilmiş EBITDA hesapla")
+        result['hukum']['aksiyon'].append("• SM/BS suçlanmamalı")
+        return result
+    
+    # === 1. CİRO EROZYONU ===
     if ciro_erozyon:
         result['hukum']['tip'] = "CİRO_EROZYONU"
         result['hukum']['aksiyon'].append("• Ciro erozyonu ana problem")
@@ -397,15 +430,22 @@ def ajan_analiz(row, info):
             result['hukum']['aksiyon'].append(f"• ⚠️ KRİTİK: Taşıma gücü {tasima_gucu:.2f}")
         if gider_problem:
             result['hukum']['aksiyon'].append("• NOT: Gider oran artışı ciro düşüşünün SONUCU")
+    
+    # === 2. ENVANTER ===
     elif result['envanter']['durum'].startswith("🔴"):
         result['hukum']['tip'] = "ENVANTER_KAYNAKLI"
         result['hukum']['aksiyon'].append("• Envanter kaybı ana problem")
+    
+    # === 3. GİDER (sadece gerçek TL artışı varsa) ===
     elif gider_problem:
         result['hukum']['tip'] = "GIDER_KAYNAKLI"
         result['hukum']['aksiyon'].append("• Gider artışı ana problem")
+    
+    # === 4. SMM ===
     elif any('SMM' in p for p in result['gelir']['problemler']):
         result['hukum']['tip'] = "SATIS_KALITE_KAYBI"
         result['hukum']['aksiyon'].append("• SMM oranı bozulmuş")
+    
     else:
         result['hukum']['tip'] = "NORMAL"
     
@@ -803,6 +843,50 @@ def main():
             if gider_profil:
                 profil_str = " | ".join([f"{p['kalem']} %{p['oran']*100:.0f} {p['tip']}" for p in gider_profil[:3]])
                 st.markdown(f'<div class="sm-alert">⚠️ {profil_str}</div>', unsafe_allow_html=True)
+            
+            # === BS DRILL-DOWN ===
+            st.markdown("---")
+            st.markdown("**👔 Bölge Sorumluları:**")
+            
+            bs_list = []
+            for bs in df[df['SM'] == sm]['BS'].unique():
+                if not bs:
+                    continue
+                bt = df[(df['SM'] == sm) & (df['BS'] == bs)]
+                bs_ebitda = bt[f'D{n}_EBITDA'].sum()
+                bs_ns = bt[f'D{n}_NetSatis'].sum()
+                bs_oran = safe_div(bs_ebitda, bs_ns)
+                bs_kritik = len(bt[bt['Kategori'].isin(['🔥 Yangın', '🚨 Acil', '🟥 Kritik'])])
+                bs_list.append({
+                    'bs': bs,
+                    'count': len(bt),
+                    'ebitda': bs_ebitda,
+                    'oran': bs_oran,
+                    'kritik': bs_kritik,
+                    'df': bt
+                })
+            
+            bs_list = sorted(bs_list, key=lambda x: x['kritik'], reverse=True)
+            
+            for b in bs_list:
+                kritik_emoji = "🔴" if b['kritik'] > 2 else "🟡" if b['kritik'] > 0 else "🟢"
+                
+                with st.expander(f"📁 {b['bs']} | {b['count']} mğz | {fmt(b['ebitda'])} | %{b['oran']:.1f} | {kritik_emoji} {b['kritik']} kritik"):
+                    # Kritik mağazalar
+                    km = b['df'][b['df']['Kategori'].isin(['🔥 Yangın', '🚨 Acil', '🟥 Kritik'])].sort_values('Skor')
+                    
+                    if len(km) > 0:
+                        for _, m in km.iterrows():
+                            ma = ajan_analiz(m, info)
+                            hukum_tip = ma['hukum']['tip']
+                            prob = " | ".join([p.split(':')[0].replace('🔴','').replace('📉','').replace('🏭','').replace('   └','').strip() for p in (ma['gelir']['problemler'] + ma['gider']['problemler'])[:2]]) or hukum_tip
+                            
+                            st.markdown(f"• **{m['Magaza_Isim']}** | {m['Kategori']} | {hukum_tip}")
+                            if ma['hukum']['aksiyon']:
+                                for a in ma['hukum']['aksiyon'][:2]:
+                                    st.caption(f"  {a}")
+                    else:
+                        st.success("✅ Kritik mağaza yok")
     
     # === EXPORT ===
     st.markdown("---")
