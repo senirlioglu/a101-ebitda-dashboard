@@ -738,7 +738,40 @@ def main():
         k = st.session_state.sel_kat
         kdf = df[df['Kategori'] == k].copy()
         
-        # Filtreler
+        # === 1. GİDER FİLTRE BUTONLARI (ÖNCE) ===
+        st.markdown("#### 💰 Gider Filtresi")
+        
+        # Her gider için problemli mağaza say
+        gider_sayilari = {}
+        gider_keys = ['Kira', 'Personel', 'Elektrik', 'Temizlik', 'Prim', 'Aidat', 'Toplam']
+        d1, d2 = (f'D{n-1}_', f'D{n}_') if n >= 2 else ('D1_', 'D2_')
+        
+        for gk in gider_keys:
+            count = 0
+            for _, row in kdf.iterrows():
+                oran1 = row.get(f'{d1}{gk}_Oran', 0) or 0
+                oran2 = row.get(f'{d2}{gk}_Oran', 0) or 0
+                tl1 = row.get(f'{d1}{gk}_TL', 0) or 0
+                tl2 = row.get(f'{d2}{gk}_TL', 0) or 0
+                ns2 = row.get(f'{d2}NetSatis', 0) or 0
+                min_etki = ns2 * 0.005 if ns2 > 0 else 5000
+                
+                if tl2 - tl1 >= min_etki and oran2 - oran1 >= GIDER_RULES.get(gk, {}).get('abs', 0.05):
+                    count += 1
+            gider_sayilari[gk] = count
+        
+        # Butonlar
+        gcols = st.columns(len(gider_keys))
+        for i, (gk, gcol) in enumerate(zip(gider_keys, gcols)):
+            with gcol:
+                if st.button(f"{gk}\n{gider_sayilari[gk]}", key=f"gf_{gk}", use_container_width=True):
+                    st.session_state.sel_gider = gk
+        
+        # Temizle butonu
+        if st.button("🔄 Gider Filtresini Temizle", key="gf_clear"):
+            st.session_state.sel_gider = None
+        
+        # === 2. SM/BS FİLTRELERİ (SONRA) ===
         st.markdown("#### 🔍 Filtreler")
         fcol1, fcol2, fcol3 = st.columns(3)
         
@@ -762,6 +795,7 @@ def main():
                 mag_list = ['Tümü'] + sorted(kdf['Magaza_Isim'].tolist())
             sel_mag = st.selectbox("Mağaza", mag_list, key="filter_mag")
         
+        # Filtreleri uygula
         if sel_sm != 'Tümü':
             kdf = kdf[kdf['SM'] == sel_sm]
         if sel_bs != 'Tümü':
@@ -769,9 +803,30 @@ def main():
         if sel_mag != 'Tümü':
             kdf = kdf[kdf['Magaza_Isim'] == sel_mag]
         
+        # === 3. GİDER FİLTRESİ UYGULAMASI ===
+        sel_gider = st.session_state.get('sel_gider', None)
+        
+        if sel_gider:
+            # Sadece bu giderde problemi olan mağazaları filtrele
+            filtered_codes = []
+            for _, row in kdf.iterrows():
+                oran1 = row.get(f'{d1}{sel_gider}_Oran', 0) or 0
+                oran2 = row.get(f'{d2}{sel_gider}_Oran', 0) or 0
+                tl1 = row.get(f'{d1}{sel_gider}_TL', 0) or 0
+                tl2 = row.get(f'{d2}{sel_gider}_TL', 0) or 0
+                ns2 = row.get(f'{d2}NetSatis', 0) or 0
+                min_etki = ns2 * 0.005 if ns2 > 0 else 5000
+                
+                if tl2 - tl1 >= min_etki and oran2 - oran1 >= GIDER_RULES.get(sel_gider, {}).get('abs', 0.05):
+                    filtered_codes.append(row['Kod'])
+            
+            kdf = kdf[kdf['Kod'].isin(filtered_codes)]
+            st.info(f"🎯 **{sel_gider}** problemi olan mağazalar gösteriliyor ({len(kdf)} mağaza)")
+        
         kdf = kdf.sort_values('Skor')
         st.markdown(f"### {k} ({len(kdf)} mağaza)")
         
+        # === 4. MAĞAZA LİSTESİ ===
         for _, row in kdf.iterrows():
             analiz = ajan_analiz(row, info)
             tum_prob = analiz['gelir']['problemler'] + analiz['gider']['problemler']
@@ -780,6 +835,25 @@ def main():
             with st.expander(f"**{row['Magaza_Isim']}** | {row['SM']}/{row['BS']} | Skor:{row['Skor']:.1f} | {prob_str}"):
                 if n == 3:
                     st.markdown(f"**EBITDA:** {dk[0]} %{row.get('D1_EBITDA_Oran',0):.1f} → {dk[1]} %{row.get('D2_EBITDA_Oran',0):.1f} → {dk[2]} %{row.get('D3_EBITDA_Oran',0):.1f}")
+                
+                # Eğer gider filtresi seçiliyse, o giderin detayını göster
+                if sel_gider:
+                    oran1 = row.get(f'{d1}{sel_gider}_Oran', 0) or 0
+                    oran2 = row.get(f'{d2}{sel_gider}_Oran', 0) or 0
+                    tl1 = row.get(f'{d1}{sel_gider}_TL', 0) or 0
+                    tl2 = row.get(f'{d2}{sel_gider}_TL', 0) or 0
+                    tl_artis = tl2 - tl1
+                    tl_artis_pct = ((tl2 / tl1) - 1) * 100 if tl1 > 0 else 0
+                    oran_artis = oran2 - oran1
+                    ns2 = row.get(f'{d2}NetSatis', 0) or 0
+                    ebitda_etki = -tl_artis / ns2 * 100 if ns2 > 0 else 0
+                    
+                    st.markdown(f"""
+**💰 {sel_gider} Detayı:**
+- **Oran:** %{oran1:.2f} → %{oran2:.2f} (+{oran_artis:.2f}p)
+- **TL:** {fmt(tl1)} → {fmt(tl2)} (+{fmt(tl_artis)}, +{tl_artis_pct:.0f}%)
+- **EBITDA Etkisi:** {ebitda_etki:.2f} puan
+""")
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -879,12 +953,34 @@ def main():
                         for _, m in km.iterrows():
                             ma = ajan_analiz(m, info)
                             hukum_tip = ma['hukum']['tip']
-                            prob = " | ".join([p.split(':')[0].replace('🔴','').replace('📉','').replace('🏭','').replace('   └','').strip() for p in (ma['gelir']['problemler'] + ma['gider']['problemler'])[:2]]) or hukum_tip
                             
-                            st.markdown(f"• **{m['Magaza_Isim']}** | {m['Kategori']} | {hukum_tip}")
+                            # Rakamsal detaylar
+                            ns1 = m.get(f'D{n-1}_NetSatis', 0) or 0
+                            ns2 = m.get(f'D{n}_NetSatis', 0) or 0
+                            ns_pct = safe_pct(ns2, ns1)
+                            eb1 = m.get(f'D{n-1}_EBITDA_Oran', 0) or 0
+                            eb2 = m.get(f'D{n}_EBITDA_Oran', 0) or 0
+                            eb_delta = eb2 - eb1
+                            tasima = ma['gelir'].get('tasima_gucu') or 0
+                            
+                            st.markdown(f"**• {m['Magaza_Isim']}** | {m['Kategori']} | `{hukum_tip}`")
+                            
+                            # Detay satırları
+                            detay_parts = []
+                            detay_parts.append(f"Ciro: {fmt(ns1)}→{fmt(ns2)} ({ns_pct:+.0f}%)")
+                            detay_parts.append(f"EBITDA: %{eb1:.1f}→%{eb2:.1f} ({eb_delta:+.1f}p)")
+                            if tasima < 1.5:
+                                tasima_durum = "🔥 YANGIN" if tasima < 1.0 else "⚠️ KRİTİK" if tasima < 1.2 else "📉 RİSK"
+                                detay_parts.append(f"Taşıma: {tasima:.2f} {tasima_durum}")
+                            
+                            st.caption(f"  ├─ {detay_parts[0]}")
+                            st.caption(f"  ├─ {detay_parts[1]}")
+                            if len(detay_parts) > 2:
+                                st.caption(f"  └─ {detay_parts[2]}")
+                            
+                            # Ana sorun özeti
                             if ma['hukum']['aksiyon']:
-                                for a in ma['hukum']['aksiyon'][:2]:
-                                    st.caption(f"  {a}")
+                                st.caption(f"  **→ {ma['hukum']['aksiyon'][0].replace('• ', '')}**")
                     else:
                         st.success("✅ Kritik mağaza yok")
     
