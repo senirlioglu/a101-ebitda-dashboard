@@ -39,7 +39,6 @@ st.markdown("""
     .main-header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 24px; }
     .main-header h1 { margin: 0; font-size: 1.8rem; }
     
-    /* BÖLGE STRATEJİ KARTI */
     .bolge-strateji { 
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
         border-radius: 16px; 
@@ -48,10 +47,16 @@ st.markdown("""
         color: white;
         border: 2px solid #334155;
     }
+    .bolge-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
     .bolge-hukum { 
         font-size: 1.4rem; 
         font-weight: 700; 
-        margin-bottom: 16px;
         padding: 12px 16px;
         border-radius: 8px;
         display: inline-block;
@@ -62,21 +67,35 @@ st.markdown("""
     .bolge-hukum-yapisal { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
     .bolge-hukum-normal { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
     
+    .bolge-grid {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+    .bolge-grid > div {
+        flex: 1;
+        min-width: 100px;
+    }
     .bolge-metrik { 
         background: rgba(255,255,255,0.1); 
         border-radius: 8px; 
         padding: 12px; 
         text-align: center;
-        margin: 4px;
     }
     .bolge-metrik-value { font-size: 1.5rem; font-weight: 700; }
-    .bolge-metrik-label { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; }
+    .bolge-metrik-label { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; margin-top: 4px; }
+    .bolge-metrik-sub { font-size: 0.7rem; opacity: 0.6; }
     .bolge-metrik-bad { color: #fca5a5; }
     .bolge-metrik-warn { color: #fcd34d; }
     .bolge-metrik-ok { color: #86efac; }
     
     .bolge-neden { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-top: 12px; }
+    .bolge-neden-title { font-weight: 600; margin-bottom: 8px; }
     .bolge-kaldirac { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); border-radius: 8px; padding: 12px; margin-top: 12px; }
+    .bolge-kaldirac-title { font-weight: 600; margin-bottom: 8px; }
+    .bolge-count { font-size: 2rem; font-weight: 700; text-align: right; }
+    .bolge-count-label { font-size: 0.8rem; opacity: 0.7; text-align: right; }
     
     .karar-box { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 0 12px 12px 0; margin-bottom: 24px; color: #92400e; }
     .metric-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -589,63 +608,63 @@ def main():
             hukum_class = "bolge-hukum-yapisal"
         
         # Metrik renkleri
-        def metrik_class(oran, esik_warn=0.20, esik_bad=0.35):
-            if oran >= esik_bad: return "bolge-metrik-bad"
-            if oran >= esik_warn: return "bolge-metrik-warn"
+        def mc(oran, w=0.20, b=0.35):
+            if oran >= b: return "bolge-metrik-bad"
+            if oran >= w: return "bolge-metrik-warn"
             return "bolge-metrik-ok"
         
-        st.markdown(f'''
-        <div class="bolge-strateji">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">
-                <div>
-                    <div style="font-size:0.8rem; opacity:0.7; margin-bottom:4px;">5️⃣ BÖLGE STRATEJİ AJANI</div>
-                    <div class="bolge-hukum {hukum_class}">📍 {bolge['hukum']}</div>
-                </div>
-                <div style="text-align:right;">
-                    <div style="font-size:2rem; font-weight:700;">{m['toplam']}</div>
-                    <div style="font-size:0.8rem; opacity:0.7;">MAĞAZA</div>
-                </div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; margin-top:16px;">
-                <div class="bolge-metrik">
-                    <div class="bolge-metrik-value {metrik_class(m['ciro_erozyon']['oran'], 0.25, 0.40)}">%{m['ciro_erozyon']['oran']*100:.0f}</div>
-                    <div class="bolge-metrik-label">Ciro Erozyon</div>
-                    <div style="font-size:0.7rem; opacity:0.6;">{m['ciro_erozyon']['sayi']} mğz</div>
-                </div>
-                <div class="bolge-metrik">
-                    <div class="bolge-metrik-value {metrik_class(m['tasima_kritik']['oran'], 0.15, 0.25)}">%{m['tasima_kritik']['oran']*100:.0f}</div>
-                    <div class="bolge-metrik-label">Taşıma Kritik</div>
-                    <div style="font-size:0.7rem; opacity:0.6;">{m['tasima_kritik']['sayi']} mğz</div>
-                </div>
-                <div class="bolge-metrik">
-                    <div class="bolge-metrik-value {metrik_class(m['env_karsiliksiz']['oran'], 0.10, 0.20)}">%{m['env_karsiliksiz']['oran']*100:.0f}</div>
-                    <div class="bolge-metrik-label">Envanter Kritik</div>
-                    <div style="font-size:0.7rem; opacity:0.6;">{m['env_karsiliksiz']['sayi']} mğz</div>
-                </div>
-                <div class="bolge-metrik">
-                    <div class="bolge-metrik-value {metrik_class(m['gider_yogunluk']['oran'], 0.30, 0.50)}">%{m['gider_yogunluk']['oran']*100:.0f}</div>
-                    <div class="bolge-metrik-label">Gider Yoğunluk</div>
-                    <div style="font-size:0.7rem; opacity:0.6;">{m['gider_yogunluk']['sayi']} mğz</div>
-                </div>
-                <div class="bolge-metrik">
-                    <div class="bolge-metrik-value {metrik_class(m['yangin']['oran'], 0.10, 0.20)}">%{m['yangin']['oran']*100:.0f}</div>
-                    <div class="bolge-metrik-label">Yangın/Acil</div>
-                    <div style="font-size:0.7rem; opacity:0.6;">{m['yangin']['sayi']} mğz</div>
-                </div>
-            </div>
-            
-            <div class="bolge-neden">
-                <div style="font-weight:600; margin-bottom:8px;">📋 NEDENLER</div>
-                {"".join([f"<div>• {neden}</div>" for neden in bolge['nedenler']])}
-            </div>
-            
-            <div class="bolge-kaldirac">
-                <div style="font-weight:600; margin-bottom:8px;">🎯 ÖNERİLEN KALDIRACLAR</div>
-                {"".join([f"<div>{kaldirac}</div>" for kaldirac in bolge['kaldiraclar']])}
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+        # Nedenler ve kaldıraçlar HTML
+        nedenler_html = "".join([f"<div>• {nd}</div>" for nd in bolge['nedenler']])
+        kaldirac_html = "".join([f"<div>{kd}</div>" for kd in bolge['kaldiraclar']])
+        
+        # Ana kart
+        st.markdown(f'''<div class="bolge-strateji">
+<div class="bolge-header">
+<div>
+<div class="bolge-metrik-sub">5️⃣ BÖLGE STRATEJİ AJANI</div>
+<div class="bolge-hukum {hukum_class}">📍 {bolge['hukum']}</div>
+</div>
+<div>
+<div class="bolge-count">{m['toplam']}</div>
+<div class="bolge-count-label">MAĞAZA</div>
+</div>
+</div>
+<div class="bolge-grid">
+<div class="bolge-metrik">
+<div class="bolge-metrik-value {mc(m['ciro_erozyon']['oran'], 0.25, 0.40)}">%{m['ciro_erozyon']['oran']*100:.0f}</div>
+<div class="bolge-metrik-label">Ciro Erozyon</div>
+<div class="bolge-metrik-sub">{m['ciro_erozyon']['sayi']} mğz</div>
+</div>
+<div class="bolge-metrik">
+<div class="bolge-metrik-value {mc(m['tasima_kritik']['oran'], 0.15, 0.25)}">%{m['tasima_kritik']['oran']*100:.0f}</div>
+<div class="bolge-metrik-label">Taşıma Kritik</div>
+<div class="bolge-metrik-sub">{m['tasima_kritik']['sayi']} mğz</div>
+</div>
+<div class="bolge-metrik">
+<div class="bolge-metrik-value {mc(m['env_karsiliksiz']['oran'], 0.10, 0.20)}">%{m['env_karsiliksiz']['oran']*100:.0f}</div>
+<div class="bolge-metrik-label">Envanter Kritik</div>
+<div class="bolge-metrik-sub">{m['env_karsiliksiz']['sayi']} mğz</div>
+</div>
+<div class="bolge-metrik">
+<div class="bolge-metrik-value {mc(m['gider_yogunluk']['oran'], 0.30, 0.50)}">%{m['gider_yogunluk']['oran']*100:.0f}</div>
+<div class="bolge-metrik-label">Gider Yoğunluk</div>
+<div class="bolge-metrik-sub">{m['gider_yogunluk']['sayi']} mğz</div>
+</div>
+<div class="bolge-metrik">
+<div class="bolge-metrik-value {mc(m['yangin']['oran'], 0.10, 0.20)}">%{m['yangin']['oran']*100:.0f}</div>
+<div class="bolge-metrik-label">Yangın/Acil</div>
+<div class="bolge-metrik-sub">{m['yangin']['sayi']} mğz</div>
+</div>
+</div>
+<div class="bolge-neden">
+<div class="bolge-neden-title">📋 NEDENLER</div>
+{nedenler_html}
+</div>
+<div class="bolge-kaldirac">
+<div class="bolge-kaldirac-title">🎯 ÖNERİLEN KALDIRACLAR</div>
+{kaldirac_html}
+</div>
+</div>''', unsafe_allow_html=True)
     
     # === BÖLGE TREND ===
     st.subheader("📊 Bölge Trendi")
