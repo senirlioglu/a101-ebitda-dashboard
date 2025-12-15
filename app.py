@@ -404,16 +404,28 @@ def bolge_strateji_ajani(df, info):
         return None
     
     n = info['n']
+    d1, d2 = (f'D{n-1}_', f'D{n}_') if n >= 2 else ('D1_', 'D2_')
     
     # Her mağaza için analiz yap ve sonuçları topla
     analizler = []
     for _, row in df.iterrows():
         a = ajan_analiz(row, info)
+        
+        # Gerçek gider artışı kontrolü (TL bazında)
+        gercek_gider_artisi = False
+        for gider_key in ['Personel', 'Elektrik', 'Temizlik', 'Toplam']:
+            tl1 = row.get(f'{d1}{gider_key}_TL', 0) or 0
+            tl2 = row.get(f'{d2}{gider_key}_TL', 0) or 0
+            if tl1 > 0 and (tl2 - tl1) / tl1 > 0.10:  # %10+ TL artış
+                gercek_gider_artisi = True
+                break
+        
         analizler.append({
             'ciro_erozyon': a['gelir']['ciro_erozyon'],
             'tasima_gucu': a['gelir']['tasima_gucu'] or 99,
             'envanter_bozuk': a['envanter']['durum'].startswith("🔴"),
             'gider_problem': len(a['gider']['problemler']) > 0,
+            'gercek_gider_artisi': gercek_gider_artisi,
             'smm_problem': any('SMM' in p for p in a['gelir']['problemler']),
             'hukum_tip': a['hukum']['tip'],
             'kategori': row.get('Kategori', '')
@@ -424,7 +436,8 @@ def bolge_strateji_ajani(df, info):
     # Bölgesel Metrikler
     ciro_erozyon_oran = adf['ciro_erozyon'].sum() / N
     env_karsiliksiz_oran = adf['envanter_bozuk'].sum() / N
-    gider_yogunluk_oran = adf['gider_problem'].sum() / N
+    # Gider yoğunluk: sadece GERÇEK TL artışı olanlar
+    gider_yogunluk_oran = adf['gercek_gider_artisi'].sum() / N
     tasima_kritik_oran = (adf['tasima_gucu'] < 1.2).sum() / N
     smm_problem_oran = adf['smm_problem'].sum() / N
     yangin_oran = adf['kategori'].isin(['🔥 Yangın', '🚨 Acil']).sum() / N
