@@ -351,6 +351,10 @@ def ajan_analiz(row, info):
     
     # === NİHAİ HÜKÜM - HİYERARŞİK (GELİR > ENVANTER > GİDER) ===
     
+    # Değişken tanımları
+    gider_problem = len(result['gider']['problemler']) > 0
+    gelir_problem = len(result['gelir']['problemler']) > 0
+    
     # Taşıma gücü eşikleri güncellenmiş
     tasima_risk = tasima_gucu < 1.5
     tasima_kritik = tasima_gucu < 1.2
