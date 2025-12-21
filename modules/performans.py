@@ -30,16 +30,16 @@ PARQUET_2025 = "veri_2025.parquet"
 NUMERIK_KOLONLAR = ['Adet', 'Ciro', 'Marj', 'Fire', 'Envanter', 'Kampanya_Zarar']
 
 # ============================================================================
-# CSS
+# CSS - run() içinde uygulanacak
 # ============================================================================
-st.markdown("""
+PERFORMANS_CSS = """
 <style>
     /* Genel padding azaltma */
     .block-container {padding-top: 1rem !important; padding-bottom: 0 !important;}
-    
+
     .main-title {font-size: 1.3rem; font-weight: 700; color: #1e293b; margin-bottom: 0; margin-top: 0;}
     .sub-title {font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;}
-    
+
     .kpi-card {
         background: white; border: 1px solid #e2e8f0; border-radius: 8px;
         padding: 0.75rem; text-align: center;
@@ -49,18 +49,18 @@ st.markdown("""
     .kpi-delta {font-size: 0.8rem; font-weight: 600;}
     .delta-up {color: #10b981;}
     .delta-down {color: #ef4444;}
-    
+
     .section-title {
         font-size: 1rem; font-weight: 600; color: #334155;
         padding-bottom: 0.3rem; border-bottom: 2px solid #e2e8f0;
         margin: 0.75rem 0 0.5rem 0;
     }
-    
+
     .filter-badge {
         display: inline-block; background: #f1f5f9; padding: 0.3rem 0.75rem;
         border-radius: 6px; font-size: 0.8rem; color: #475569; margin-bottom: 0.5rem;
     }
-    
+
     .neden-box {
         background: #fef3c7; padding: 0.4rem; border-radius: 6px;
         font-size: 0.8rem; margin-top: 0.4rem;
@@ -68,17 +68,17 @@ st.markdown("""
     .aksiyon-box {
         color: #0369a1; font-size: 0.8rem; margin-top: 0.4rem;
     }
-    
+
     .success-box {
         background: #d1fae5; border: 1px solid #10b981; border-radius: 6px;
         padding: 0.5rem; margin: 0.5rem 0; font-size: 0.85rem;
     }
-    
+
     /* Streamlit varsayılanlarını sıkıştır */
     .stTabs [data-baseweb="tab-list"] {gap: 8px;}
     .stTabs [data-baseweb="tab"] {padding: 8px 16px; font-size: 0.9rem;}
     div[data-testid="stExpander"] {margin-bottom: 0.3rem;}
-    
+
     /* Detay bölümü için highlight */
     .detay-baslik {
         background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
@@ -91,7 +91,7 @@ st.markdown("""
         scroll-margin-top: 80px;
     }
 </style>
-""", unsafe_allow_html=True)
+"""
 
 
 def scroll_to(element_id: str):
@@ -1789,6 +1789,9 @@ def karar_goster(df: pd.DataFrame, baslik: str, limit: int = 10, ters: bool = Fa
 # ============================================================================
 
 def run():
+    # CSS uygula
+    st.markdown(PERFORMANS_CSS, unsafe_allow_html=True)
+
     st.markdown('<h1 class="main-title">🎯 Satış Karar Sistemi</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-title">Kasım 2024 → 2025 | 3 dakikada teşhis, neden, aksiyon</p>', unsafe_allow_html=True)
     

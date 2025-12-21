@@ -32,18 +32,18 @@ GELIR_RULES = {
     "SabitGider_TL": {"rel": 0.02},
 }
 
-# === STYLE ===
-st.markdown("""
+# === STYLE - run() içinde uygulanacak ===
+EBITDA_CSS = """
 <style>
     .stApp { background-color: #f8fafc; }
     .main-header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 24px; }
     .main-header h1 { margin: 0; font-size: 1.8rem; }
-    
-    .bolge-strateji { 
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-        border-radius: 16px; 
-        padding: 24px; 
-        margin-bottom: 24px; 
+
+    .bolge-strateji {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
         color: white;
         border: 2px solid #334155;
     }
@@ -54,9 +54,9 @@ st.markdown("""
         flex-wrap: wrap;
         margin-bottom: 16px;
     }
-    .bolge-hukum { 
-        font-size: 1.4rem; 
-        font-weight: 700; 
+    .bolge-hukum {
+        font-size: 1.4rem;
+        font-weight: 700;
         padding: 12px 16px;
         border-radius: 8px;
         display: inline-block;
@@ -66,7 +66,7 @@ st.markdown("""
     .bolge-hukum-disiplin { background: linear-gradient(135deg, #ca8a04 0%, #a16207 100%); }
     .bolge-hukum-yapisal { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
     .bolge-hukum-normal { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
-    
+
     .bolge-grid {
         display: flex;
         gap: 8px;
@@ -77,10 +77,10 @@ st.markdown("""
         flex: 1;
         min-width: 100px;
     }
-    .bolge-metrik { 
-        background: rgba(255,255,255,0.1); 
-        border-radius: 8px; 
-        padding: 12px; 
+    .bolge-metrik {
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 12px;
         text-align: center;
     }
     .bolge-metrik-value { font-size: 1.5rem; font-weight: 700; }
@@ -89,14 +89,14 @@ st.markdown("""
     .bolge-metrik-bad { color: #fca5a5; }
     .bolge-metrik-warn { color: #fcd34d; }
     .bolge-metrik-ok { color: #86efac; }
-    
+
     .bolge-neden { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-top: 12px; }
     .bolge-neden-title { font-weight: 600; margin-bottom: 8px; }
     .bolge-kaldirac { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); border-radius: 8px; padding: 12px; margin-top: 12px; }
     .bolge-kaldirac-title { font-weight: 600; margin-bottom: 8px; }
     .bolge-count { font-size: 2rem; font-weight: 700; text-align: right; }
     .bolge-count-label { font-size: 0.8rem; opacity: 0.7; text-align: right; }
-    
+
     .karar-box { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 0 12px 12px 0; margin-bottom: 24px; color: #92400e; }
     .metric-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .metric-value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
@@ -112,7 +112,7 @@ st.markdown("""
     .ok-item { background: #d1fae5; padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.8rem; }
     .sm-alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 12px; margin-top: 8px; color: #991b1b; font-size: 0.85rem; }
 </style>
-""", unsafe_allow_html=True)
+"""
 
 # === HELPERS ===
 def extract_code(m):
@@ -602,6 +602,9 @@ def get_sm_gider_profil(df, sm, n):
 
 # === MAIN ===
 def run():
+    # CSS uygula
+    st.markdown(EBITDA_CSS, unsafe_allow_html=True)
+
     st.markdown('<div class="main-header"><h1>🎯 EBITDA Karar Motoru</h1><p>5 Ajanlı Sistem | Bölge Strateji • EBITDA • Gelir • Gider • Envanter</p></div>', unsafe_allow_html=True)
     
     f = st.file_uploader("Excel yükle", type=['xlsx'], label_visibility="collapsed")
