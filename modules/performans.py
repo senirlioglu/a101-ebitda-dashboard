@@ -18,13 +18,6 @@ warnings.filterwarnings('ignore')
 # ============================================================================
 # SAYFA AYARLARI
 # ============================================================================
-# page config removed for super app
-    page_title="Satış Karar Sistemi",
-    page_icon="🎯",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 # ============================================================================
 # SABİTLER
 # ============================================================================
@@ -2277,5 +2270,5 @@ def run():
     con.close()
 
 
-if __name__ == "__main__": pass #
-    # run()
+if __name__ == "__main__":
+    run()

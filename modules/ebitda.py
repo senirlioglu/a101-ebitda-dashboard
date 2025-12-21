@@ -992,5 +992,5 @@ def run():
     st.download_button("📥 Excel İndir", data=out.getvalue(), file_name=f"EBITDA_5Ajan.xlsx")
 
 
-if __name__ == "__main__": pass #
-    # run()
+if __name__ == "__main__":
+    run()
